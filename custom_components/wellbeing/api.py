@@ -51,7 +51,7 @@ class Model(str, Enum):
     PM700 = "Verbier"  # "PUREMULTI700"
     Robot700series = "700series"  # 700series vacuum robot series
     UltimateHome700 = "UltimateHome 700"  # Dehumidifier
-    VacuumHygienic700 = "Gordias"  # HYGIENIC700
+    DH = "DH"  # Custom Dehumidifier
 
 
 class WorkMode(str, Enum):
@@ -61,6 +61,7 @@ class WorkMode(str, Enum):
     SMART = "Smart"
     QUITE = "Quiet"
     AUTO = "Auto"
+    AUTOMATIC = "Automatic"
 
 
 class LouverSwingMode(str, Enum):
@@ -130,6 +131,13 @@ class ApplianceVacuum(ApplianceEntity):
         super().__init__(name, attr)
 
 
+class ApplianceSwitch(ApplianceEntity):
+    entity_type: int = Platform.SWITCH
+
+    def __init__(self, name, attr) -> None:
+        super().__init__(name, attr)
+
+
 class ApplianceBinary(ApplianceEntity):
     entity_type: int = Platform.BINARY_SENSOR
 
@@ -138,7 +146,7 @@ class ApplianceBinary(ApplianceEntity):
 
     @property
     def state(self):
-        return self._state in ["enabled", True, "Connected", "on"]
+        return self._state or self._state.lower() in ["enabled", "connected", "on"] or not(self._state.lower() == "off")
 
 
 class Appliance:
@@ -158,7 +166,15 @@ class Appliance:
 
     @staticmethod
     def _create_entities(data):
-        ultimate_home_700_entities = [
+        dh_entities = [
+            ApplianceSwitch(name="Ionizer", attr="cleanAirMode"),
+            ApplianceFan(
+                name="Electrolux Dehumidifier", 
+                attr="fanSpeedSetting",
+            ),
+        ]
+
+        ultimateHome700 = [
             ApplianceSensor(
                 name="PM2.5",
                 attr="pm25",
@@ -167,7 +183,6 @@ class Appliance:
                 state_class=SensorStateClass.MEASUREMENT,
             ),
             ApplianceSensor(name="Hepa Filter", attr="hepaFilterState", device_class=SensorDeviceClass.ENUM),
-            ApplianceSensor(name="Operative Mode", attr="operativeMode", device_class=SensorDeviceClass.ENUM),
             ApplianceSensor(name="Air Quality", attr="airQualityState", device_class=SensorDeviceClass.ENUM),
             ApplianceSensor(
                 name="Ambient Temperature (Fahrenheit)",
@@ -196,17 +211,14 @@ class Appliance:
                 device_class=BinarySensorDeviceClass.CONNECTIVITY,
                 entity_category=EntityCategory.DIAGNOSTIC,
             ),
-            ApplianceBinary(name="Clean Air", attr="cleanAirMode"),
             ApplianceBinary(name="Vertical Swing", attr="verticalSwing"),
             ApplianceBinary(name="Water Tank Full", attr="waterTankFull"),
-            ApplianceBinary(name="Sppliance State", attr="applianceState"),
+            ApplianceBinary(name="Appliance State", attr="applianceState"),
             ApplianceBinary(name="UI Lock", attr="uiLockMode", device_class=BinarySensorDeviceClass.LOCK),
             ApplianceSensor(
                 name="Target Humidity",
                 attr="targetHumidity",
             ),
-            ApplianceSensor(name="Fan Speed Setting", attr="fanSpeedSetting", device_class=SensorDeviceClass.ENUM),
-            ApplianceSensor(name="Fan Speed State", attr="fanSpeedState", device_class=SensorDeviceClass.ENUM),
         ]
 
         pure500_entities = [
@@ -294,7 +306,7 @@ class Appliance:
             ),
         ]
 
-        vacuum_700_series_entities = [
+        Robot700series_entities = [
             ApplianceVacuum(name="Robot Status", attr="state"),
             ApplianceSensor(
                 name="Cleaning Mode",
@@ -312,14 +324,6 @@ class Appliance:
                 device_class=SensorDeviceClass.ENUM,
             ),
             ApplianceBinary(name="Mop Installed", attr="mopInstalled"),
-        ]
-
-        vacuum_hygienic_700_entities = [
-            ApplianceSensor(
-                name="Vacuum Mode",
-                attr="vacuumMode",
-                device_class=SensorDeviceClass.ENUM,
-            ),
         ]
 
         common_entities = [
@@ -389,15 +393,13 @@ class Appliance:
                 device_class=SensorDeviceClass.ENUM,
                 entity_category=EntityCategory.DIAGNOSTIC,
             ),
-            ApplianceBinary(
+            ApplianceSwitch(
                 name="Ionizer",
                 attr="Ionizer",
-                device_class=BinarySensorDeviceClass.RUNNING,
             ),
-            ApplianceBinary(
+            ApplianceSwitch(
                 name="UI Light",
                 attr="UILight",
-                device_class=BinarySensorDeviceClass.LIGHT,
             ),
             ApplianceBinary(
                 name="Door Open",
@@ -412,7 +414,7 @@ class Appliance:
                 entity_category=EntityCategory.DIAGNOSTIC,
             ),
             ApplianceBinary(name="Status", attr="status", entity_category=EntityCategory.DIAGNOSTIC),
-            ApplianceBinary(name="Safety Lock", attr="SafetyLock", device_class=BinarySensorDeviceClass.LOCK),
+            ApplianceSwitch(name="Safety Lock", attr="SafetyLock"),
         ]
 
         return (
@@ -422,9 +424,9 @@ class Appliance:
             + pure500_entities
             + pm700_entities
             + purei9_entities
-            + ultimate_home_700_entities
-            + vacuum_700_series_entities
-            + vacuum_hygienic_700_entities
+            + Robot700series_entities
+            + ultimateHome700
+            + dh_entities
         )
 
     def get_entity(self, entity_type, entity_attr):
@@ -444,8 +446,6 @@ class Appliance:
     def setup(self, data, capabilities):
         if "FrmVer_NIU" in data:
             self.firmware = data.get("FrmVer_NIU")
-        if "VmNo_NIU" in data:
-            self.firmware = data.get("VmNo_NIU")
         if "applianceUiSwVersion" in data:
             self.firmware = data.get("applianceUiSwVersion")
         if "Workmode" in data:
@@ -464,14 +464,14 @@ class Appliance:
     def preset_modes(self) -> list[WorkMode]:
         if self.model == Model.Muju:
             return [WorkMode.SMART, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
-        return [WorkMode.AUTO, WorkMode.MANUAL, WorkMode.OFF]
+        return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET]
 
     def work_mode_from_preset_mode(self, preset_mode: str | None) -> WorkMode:
         if preset_mode:
             return WorkMode(preset_mode)
         if self.model == Model.Muju:
             return WorkMode.SMART
-        return WorkMode.AUTO
+        return WorkMode.AUTOMATIC
 
     @property
     def speed_range(self) -> tuple[int, int]:
@@ -486,6 +486,8 @@ class Appliance:
             return 1, 5
         if self.model == Model.PUREA9:
             return 1, 9
+        if self.model == Model.DH:
+            return 1, 4
 
         ## AEG Devices:
         if self.model == Model.AX5:
