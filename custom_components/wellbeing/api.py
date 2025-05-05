@@ -169,7 +169,7 @@ class Appliance:
         dh_entities = [
             ApplianceSwitch(name="Ionizer", attr="cleanAirMode"),
             ApplianceFan(
-                name="Electrolux Dehumidifier",
+                name="Electrolux Dehumidifier", 
                 attr="fanSpeedSetting",
             ),
         ]
@@ -306,7 +306,7 @@ class Appliance:
             ),
         ]
 
-        vacuum_700_series_entities = [
+        Robot700series_entities = [
             ApplianceVacuum(name="Robot Status", attr="state"),
             ApplianceSensor(
                 name="Cleaning Mode",
@@ -324,14 +324,6 @@ class Appliance:
                 device_class=SensorDeviceClass.ENUM,
             ),
             ApplianceBinary(name="Mop Installed", attr="mopInstalled"),
-        ]
-
-        vacuum_hygienic_700_entities = [
-            ApplianceSensor(
-                name="Vacuum Mode",
-                attr="vacuumMode",
-                device_class=SensorDeviceClass.ENUM,
-            ),
         ]
 
         common_entities = [
@@ -432,9 +424,8 @@ class Appliance:
             + pure500_entities
             + pm700_entities
             + purei9_entities
-            + ultimate_home_700_entities
-            + vacuum_700_series_entities
-            + vacuum_hygienic_700_entities
+            + Robot700series_entities
+            + ultimateHome700
             + dh_entities
         )
 
@@ -455,8 +446,6 @@ class Appliance:
     def setup(self, data, capabilities):
         if "FrmVer_NIU" in data:
             self.firmware = data.get("FrmVer_NIU")
-        if "VmNo_NIU" in data:
-            self.firmware = data.get("VmNo_NIU")
         if "applianceUiSwVersion" in data:
             self.firmware = data.get("applianceUiSwVersion")
         if "Workmode" in data:
@@ -475,7 +464,7 @@ class Appliance:
     def preset_modes(self) -> list[WorkMode]:
         if self.model == Model.Muju:
             return [WorkMode.SMART, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
-        return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET, WorkMode.OFF]
+        return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET]
 
     def work_mode_from_preset_mode(self, preset_mode: str | None) -> WorkMode:
         if preset_mode:
