@@ -1,5 +1,7 @@
 """Switch platform for Wellbeing."""
 
+import asyncio
+
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import Platform
 
@@ -27,26 +29,22 @@ async def async_setup_entry(hass, entry, async_add_devices):
 class WellbeingSwitch(WellbeingEntity, SwitchEntity):
     """Wellbeing Switch class."""
 
-    def __init__(self, coordinator, config_entry, pnc_id, function):
-        super().__init__(coordinator, config_entry, pnc_id, "binary_sensor", function)
-        self._function = function
-        self._is_on = self.get_entity.state
+    def __init__(self, coordinator, config_entry, pnc_id, entity_type, entity_attr):
+        super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
 
     @property
     def is_on(self):
         """Return true if switch is on."""
-        return self._is_on
+        return self.get_entity.state
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        await self.coordinator.api.set_feature_state(self.pnc_id, self._function, True)
-        self._is_on = True
-        self.async_write_ha_state()
+        await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, True)
+        await asyncio.sleep(2)
         await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        await self.coordinator.api.set_feature_state(self.pnc_id, self._function, False)
-        self._is_on = False
-        self.async_write_ha_state()
+        await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, False)
+        await asyncio.sleep(2)
         await self.coordinator.async_request_refresh()

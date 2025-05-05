@@ -134,8 +134,15 @@ class ApplianceVacuum(ApplianceEntity):
 class ApplianceSwitch(ApplianceEntity):
     entity_type: int = Platform.SWITCH
 
-    def __init__(self, name, attr) -> None:
+    def __init__(self, name, attr, device_class=None, entity_category: EntityCategory = UNDEFINED) -> None:
         super().__init__(name, attr)
+
+    @property
+    def state(self):
+        if isinstance(self._state, str):
+            return self._state.lower() in ["enabled", "connected", "running", "on"]
+        else:
+            return self._state
 
 
 class ApplianceBinary(ApplianceEntity):
@@ -146,7 +153,10 @@ class ApplianceBinary(ApplianceEntity):
 
     @property
     def state(self):
-        return self._state or self._state.lower() in ["enabled", "connected", "on"] or not(self._state.lower() == "off")
+        if isinstance(self._state, str):
+            return self._state.lower() in ["enabled", "connected", "running", "on"]
+        else:
+            return self._state
 
 
 class Appliance:
@@ -165,166 +175,235 @@ class Appliance:
         self.name = name
 
     @staticmethod
-    def _create_entities(data):
-        dh_entities = [
-            ApplianceSwitch(name="Ionizer", attr="cleanAirMode"),
-            ApplianceFan(
-                name="Electrolux Dehumidifier", 
-                attr="fanSpeedSetting",
-            ),
-        ]
+    def _create_entities(data, model):
+        entities = {
+            Model.DH: [
+                ApplianceSwitch(
+                    name="Ionizer", 
+                    attr="cleanAirMode",
+                    device_class=BinarySensorDeviceClass.RUNNING,
+                ),
+                ApplianceSwitch(
+                    name="Child Lock", 
+                    attr="uiLockMode",
+                    device_class=BinarySensorDeviceClass.LOCK,
+                ),
+                ApplianceSwitch(
+                    name="Fan Swing", 
+                    attr="verticalSwing",
+                    device_class=BinarySensorDeviceClass.MOVING,
+                ),
+                ApplianceSensor(
+                    name="Air Quality", 
+                    attr="airQualityState", 
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="PM2.5",
+                    attr="pm25",
+                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    device_class=SensorDeviceClass.PM25,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceSensor(
+                    name="Mode",
+                    attr="mode",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="Function",
+                    attr="operativeMode",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="Hepa Filter", 
+                    attr="hepaFilterState", 
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceBinary(
+                    name="Water Tank Full", 
+                    attr="waterTankFull",
+                ),
+                ApplianceBinary(
+                    name="Appliance State", 
+                    attr="applianceState",
+                ),
+                ApplianceSensor(
+                    name="Target Humidity",
+                    attr="targetHumidity",
+                ),
+                ApplianceSensor(
+                    name="Humidity",
+                    attr="sensorHumidity",
+                    unit=PERCENTAGE,
+                    device_class=SensorDeviceClass.HUMIDITY,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceSensor(
+                    name="Ambient Temperature (Celsius)",
+                    attr="ambientTemperatureC",
+                    unit=UnitOfTemperature.CELSIUS,
+                    device_class=SensorDeviceClass.TEMPERATURE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                # ApplianceFan(
+                #     name="Electrolux Dehumidifier", 
+                #     attr="fanSpeedSetting",
+                # ),
+            ],
 
-        ultimateHome700 = [
-            ApplianceSensor(
-                name="PM2.5",
-                attr="pm25",
-                unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-                device_class=SensorDeviceClass.PM25,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-            ApplianceSensor(name="Hepa Filter", attr="hepaFilterState", device_class=SensorDeviceClass.ENUM),
-            ApplianceSensor(name="Air Quality", attr="airQualityState", device_class=SensorDeviceClass.ENUM),
-            ApplianceSensor(
-                name="Ambient Temperature (Fahrenheit)",
-                attr="ambientTemperatureF",
-                unit=UnitOfTemperature.FAHRENHEIT,
-                device_class=SensorDeviceClass.TEMPERATURE,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-            ApplianceSensor(
-                name="Ambient Temperature (Celsius)",
-                attr="ambientTemperatureC",
-                unit=UnitOfTemperature.CELSIUS,
-                device_class=SensorDeviceClass.TEMPERATURE,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-            ApplianceSensor(
-                name="Humidity",
-                attr="sensorHumidity",
-                unit=PERCENTAGE,
-                device_class=SensorDeviceClass.HUMIDITY,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-            ApplianceBinary(
-                name="Connection State",
-                attr="connectivityState",
-                device_class=BinarySensorDeviceClass.CONNECTIVITY,
-                entity_category=EntityCategory.DIAGNOSTIC,
-            ),
-            ApplianceBinary(name="Vertical Swing", attr="verticalSwing"),
-            ApplianceBinary(name="Water Tank Full", attr="waterTankFull"),
-            ApplianceBinary(name="Appliance State", attr="applianceState"),
-            ApplianceBinary(name="UI Lock", attr="uiLockMode", device_class=BinarySensorDeviceClass.LOCK),
-            ApplianceSensor(
-                name="Target Humidity",
-                attr="targetHumidity",
-            ),
-        ]
+            Model.UltimateHome700: [
+                ApplianceSensor(
+                    name="PM2.5",
+                    attr="pm25",
+                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    device_class=SensorDeviceClass.PM25,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceSensor(name="Hepa Filter", attr="hepaFilterState", device_class=SensorDeviceClass.ENUM),
+                ApplianceSensor(name="Air Quality", attr="airQualityState", device_class=SensorDeviceClass.ENUM),
+                ApplianceSensor(
+                    name="Ambient Temperature (Fahrenheit)",
+                    attr="ambientTemperatureF",
+                    unit=UnitOfTemperature.FAHRENHEIT,
+                    device_class=SensorDeviceClass.TEMPERATURE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceSensor(
+                    name="Ambient Temperature (Celsius)",
+                    attr="ambientTemperatureC",
+                    unit=UnitOfTemperature.CELSIUS,
+                    device_class=SensorDeviceClass.TEMPERATURE,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceSensor(
+                    name="Humidity",
+                    attr="sensorHumidity",
+                    unit=PERCENTAGE,
+                    device_class=SensorDeviceClass.HUMIDITY,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceBinary(
+                    name="Connection State",
+                    attr="connectivityState",
+                    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
+                ApplianceBinary(name="Vertical Swing", attr="verticalSwing"),
+                ApplianceBinary(name="Water Tank Full", attr="waterTankFull"),
+                ApplianceBinary(name="Appliance State", attr="applianceState"),
+                ApplianceBinary(name="UI Lock", attr="uiLockMode", device_class=BinarySensorDeviceClass.LOCK),
+                ApplianceSensor(
+                    name="Target Humidity",
+                    attr="targetHumidity",
+                ),
+            ],
 
-        pure500_entities = [
-            ApplianceSensor(
-                name="PM2.5",
-                attr="PM2_5_approximate",
-                unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-                device_class=SensorDeviceClass.PM25,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-            ApplianceBinary(
-                name="UV State",
-                attr="UVState",
-                entity_category=EntityCategory.DIAGNOSTIC,
-            ),
-        ]
+            Model.AX5: [
+                ApplianceSensor(
+                    name="PM2.5",
+                    attr="PM2_5_approximate",
+                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    device_class=SensorDeviceClass.PM25,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+                ApplianceBinary(
+                    name="UV State",
+                    attr="UVState",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
+            ],
 
-        pm700_entities = [
-            ApplianceBinary(
-                name="AQI Light",
-                attr="AQILight",
-                device_class=BinarySensorDeviceClass.LIGHT,
-            ),
-            ApplianceBinary(
-                name="Humidification",
-                attr="Humidification",
-                device_class=BinarySensorDeviceClass.RUNNING,
-            ),
-            ApplianceSensor(
-                name="Humidification Target",
-                attr="HumidityTarget",
-                unit=PERCENTAGE,
-            ),
-            ApplianceSensor(name="Louver Swing", attr="LouverSwing", device_class=SensorDeviceClass.ENUM),
-            ApplianceBinary(
-                name="Empty Water Tray",
-                attr="WaterTrayLevelLow",
-                device_class=BinarySensorDeviceClass.PROBLEM,
-            ),
-        ]
+            Model.PM700: [
+                ApplianceBinary(
+                    name="AQI Light",
+                    attr="AQILight",
+                    device_class=BinarySensorDeviceClass.LIGHT,
+                ),
+                ApplianceBinary(
+                    name="Humidification",
+                    attr="Humidification",
+                    device_class=BinarySensorDeviceClass.RUNNING,
+                ),
+                ApplianceSensor(
+                    name="Humidification Target",
+                    attr="HumidityTarget",
+                    unit=PERCENTAGE,
+                ),
+                ApplianceSensor(name="Louver Swing", attr="LouverSwing", device_class=SensorDeviceClass.ENUM),
+                ApplianceBinary(
+                    name="Empty Water Tray",
+                    attr="WaterTrayLevelLow",
+                    device_class=BinarySensorDeviceClass.PROBLEM,
+                ),
+            ],
 
-        a7_entities = [
-            ApplianceSensor(
-                name="State",
-                attr="State",
-                device_class=SensorDeviceClass.ENUM,
-                entity_category=EntityCategory.DIAGNOSTIC,
-            ),
-            ApplianceBinary(
-                name="PM Sensor State",
-                attr="PMSensState",
-                entity_category=EntityCategory.DIAGNOSTIC,
-            ),
-        ]
+            Model.AX7: [
+                ApplianceSensor(
+                    name="State",
+                    attr="State",
+                    device_class=SensorDeviceClass.ENUM,
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
+                ApplianceBinary(
+                    name="PM Sensor State",
+                    attr="PMSensState",
+                    entity_category=EntityCategory.DIAGNOSTIC,
+                ),
+            ],
 
-        a9_entities = [
-            ApplianceSensor(
-                name=f"{FILTER_TYPE.get(data.get('FilterType', 0), 'Unknown filter')} Life",
-                attr="FilterLife",
-                unit=PERCENTAGE,
-            ),
-            ApplianceSensor(
-                name="CO2",
-                attr="CO2",
-                unit=CONCENTRATION_PARTS_PER_MILLION,
-                device_class=SensorDeviceClass.CO2,
-                state_class=SensorStateClass.MEASUREMENT,
-            ),
-        ]
+            Model.AX9: [
+                ApplianceSensor(
+                    name=f"{FILTER_TYPE.get(data.get('FilterType', 0), 'Unknown filter')} Life",
+                    attr="FilterLife",
+                    unit=PERCENTAGE,
+                ),
+                ApplianceSensor(
+                    name="CO2",
+                    attr="CO2",
+                    unit=CONCENTRATION_PARTS_PER_MILLION,
+                    device_class=SensorDeviceClass.CO2,
+                    state_class=SensorStateClass.MEASUREMENT,
+                ),
+            ],
 
-        purei9_entities = [
-            ApplianceVacuum(
-                name=data.get("applianceName", "Vacuum"),
-                attr="robotStatus",
-            ),
-            ApplianceSensor(
-                name="Dustbin Status",
-                attr="dustbinStatus",
-                device_class=SensorDeviceClass.ENUM,
-            ),
-            ApplianceSensor(
-                name="Robot Status",
-                attr="robotStatus",
-                device_class=SensorDeviceClass.ENUM,
-            ),
-        ]
+            Model.PUREi9: [
+                ApplianceVacuum(
+                    name=data.get("applianceName", "Vacuum"),
+                    attr="robotStatus",
+                ),
+                ApplianceSensor(
+                    name="Dustbin Status",
+                    attr="dustbinStatus",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="Robot Status",
+                    attr="robotStatus",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+            ],
 
-        Robot700series_entities = [
-            ApplianceVacuum(name="Robot Status", attr="state"),
-            ApplianceSensor(
-                name="Cleaning Mode",
-                attr="cleaningMode",
-                device_class=SensorDeviceClass.ENUM,
-            ),
-            ApplianceSensor(
-                name="Water Pump Rate",
-                attr="waterPumpRate",
-                device_class=SensorDeviceClass.ENUM,
-            ),
-            ApplianceSensor(
-                name="Charging Status",
-                attr="chargingStatus",
-                device_class=SensorDeviceClass.ENUM,
-            ),
-            ApplianceBinary(name="Mop Installed", attr="mopInstalled"),
-        ]
+            Model.Robot700series: [
+                ApplianceVacuum(name="Robot Status", attr="state"),
+                ApplianceSensor(
+                    name="Cleaning Mode",
+                    attr="cleaningMode",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="Water Pump Rate",
+                    attr="waterPumpRate",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceSensor(
+                    name="Charging Status",
+                    attr="chargingStatus",
+                    device_class=SensorDeviceClass.ENUM,
+                ),
+                ApplianceBinary(name="Mop Installed", attr="mopInstalled"),
+            ],
+        }
 
         common_entities = [
             ApplianceSensor(
@@ -396,10 +475,12 @@ class Appliance:
             ApplianceSwitch(
                 name="Ionizer",
                 attr="Ionizer",
+                device_class=BinarySensorDeviceClass.RUNNING,
             ),
             ApplianceSwitch(
                 name="UI Light",
                 attr="UILight",
+                device_class=BinarySensorDeviceClass.LIGHT,
             ),
             ApplianceBinary(
                 name="Door Open",
@@ -414,20 +495,14 @@ class Appliance:
                 entity_category=EntityCategory.DIAGNOSTIC,
             ),
             ApplianceBinary(name="Status", attr="status", entity_category=EntityCategory.DIAGNOSTIC),
-            ApplianceSwitch(name="Safety Lock", attr="SafetyLock"),
+            ApplianceSwitch(
+                name="Safety Lock", 
+                attr="SafetyLock",
+                device_class=BinarySensorDeviceClass.LOCK,
+                ),
         ]
 
-        return (
-            common_entities
-            + a9_entities
-            + a7_entities
-            + pure500_entities
-            + pm700_entities
-            + purei9_entities
-            + Robot700series_entities
-            + ultimateHome700
-            + dh_entities
-        )
+        return entities.get(model, []) + common_entities
 
     def get_entity(self, entity_type, entity_attr):
         return next(
@@ -458,7 +533,7 @@ class Appliance:
             self.battery_status = data.get("batteryStatus")
 
         self.capabilities = capabilities
-        self.entities = [entity.setup(data) for entity in Appliance._create_entities(data) if entity.attr in data]
+        self.entities = [entity.setup(data) for entity in Appliance._create_entities(data, self.model) if entity.attr in data]
 
     @property
     def preset_modes(self) -> list[WorkMode]:
@@ -622,14 +697,22 @@ class WellbeingApiClient:
         result = await appliance.send_command(data)
         _LOGGER.debug(f"Set work mode: {result}")
 
-    async def set_feature_state(self, pnc_id: str, feature: str, state: bool):
-        """Set the state of a feature (Ionizer, UILight, SafetyLock)."""
-        # Construct the command directly using the feature name
-        data = {feature: state}
+    async def set_feature_state(self, pnc_id: str, attr: str, state: bool):
+        """Set the state of an attr."""
         appliance = self._api_appliances.get(pnc_id, None)
         if appliance is None:
-            _LOGGER.error(f"Failed to set feature {feature} for appliance with id {pnc_id}")
+            _LOGGER.error(f"Failed to set attr {attr} for appliance with id {pnc_id}")
             return
 
+        capability = appliance.capabilities.get(attr, {})
+        option_type = capability.get('type')
+        options = list(capability.get('values').keys())
+        if option_type == 'string':
+            if options[0].lower() in ["enabled", "connected", "running", "on"]:
+                data = {attr: options[1-int(state)]}
+            else:
+                data = {attr: options[int(state)]}
+        else:
+            data = {attr: state}
         await appliance.send_command(data)
-        _LOGGER.debug(f"Set {feature} State to {state}")
+        _LOGGER.debug(f"Set {attr} State to {state}")
