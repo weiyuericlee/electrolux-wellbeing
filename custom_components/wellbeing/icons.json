@@ -1,0 +1,48 @@
+{
+  "entity": {
+    "fan": {
+      "wellbeing": {
+        "state": {
+          "off": "pap:power_button"
+        },
+        "state_attributes": {
+          "preset_mode": {
+            "default": "pap:mode",
+            "state": {
+              "AUTOMATIC": "pap:auto_mode_button",
+              "MANUAL": "mdi:auto-mode",
+              "QUIET": "pap:sleep_mode"
+            }
+          }
+        }
+      }
+    },
+    "humidifier": {
+      "wellbeing": {
+        "state": {
+          "off": "pap:power_button"
+        },
+        "state_attributes": {
+          "mode": {
+            "state": {
+              "COMPLETE": "mdi:auto-fix",
+              "DRY": "mdi:tshirt-crew",
+              "CONTINUOUS": "mdi:air-humidifier",
+              "PURIFY": "mdi:air-purifier"
+            }
+          },
+          "action": {
+            "state": {
+              "off": "pap:power_button",
+              "drying": "pap:humidity_button",
+              "idle": "mdi:air-filter"
+            }
+          },
+          "current_humidity": {
+            "default": "pap:humidity_button"
+          }
+        }
+      }
+    }
+  }
+}

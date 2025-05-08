@@ -39,6 +39,7 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
     _attr_supported_features = (
         HumidifierEntityFeature.MODES
     )
+    _attr_translation_key = "wellbeing"
 
     def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)

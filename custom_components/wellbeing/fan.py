@@ -165,6 +165,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
     _attr_supported_features = (
         FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.OSCILLATE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
     )
+    _attr_translation_key = "wellbeing"
 
     def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
@@ -196,10 +197,10 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
-        _LOGGER.debug(f"async_set_percentage - speed: {speed} percentage: {percentage}")
-
         speed = math.ceil(percentage_to_ranged_value(self._speed_range, percentage))
         set_speed = self._inv_speed_map[speed]
+
+        _LOGGER.debug(f"async_set_percentage - speed: {speed} percentage: {percentage}")
 
         self.get_entity.set_state(set_speed)
         self.async_write_ha_state()
@@ -262,6 +263,6 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
     async def async_turn_off(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.OFF)
         self.async_write_ha_state()
-        
+
         await self.api.set_dh_power_off(self.pnc_id)
 

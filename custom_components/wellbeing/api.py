@@ -600,7 +600,7 @@ class Appliance:
 
     @property
     def available_modes(self) -> FunctionMode:
-        return [FunctionMode.COMPLETE, FunctionMode.CONTINUOUS, FunctionMode.DRY, FunctionMode.PURIFY]
+        return [FunctionMode.COMPLETE, FunctionMode.DRY, FunctionMode.CONTINUOUS, FunctionMode.PURIFY]
 
     def work_mode_from_preset_mode(self, preset_mode: str | None) -> WorkMode:
         if preset_mode:
