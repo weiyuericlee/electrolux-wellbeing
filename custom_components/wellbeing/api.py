@@ -54,6 +54,11 @@ class Model(str, Enum):
     DH = "DH"  # Custom Dehumidifier
 
 
+class PowerStatus(str, Enum):
+    OFF = "OFF"
+    ON = "RUNNING"
+
+
 class WorkMode(str, Enum):
     OFF = "PowerOff"
     MANUAL = "Manual"
@@ -61,7 +66,20 @@ class WorkMode(str, Enum):
     SMART = "Smart"
     QUITE = "Quiet"
     AUTO = "Auto"
-    AUTOMATIC = "Automatic"
+
+
+class OperativeMode(str, Enum):
+    UNDEFINED = "UNDEFINED"
+    AUTOMATIC = "AUTOMATIC"
+    MANUAL = "MANUAL"
+    QUIET = "QUIET"
+
+
+class FunctionMode(str, Enum):
+    COMPLETE = "COMPLETE"
+    CONTINUOUS = "CONTINUOUS"
+    DRY = "DRY"
+    PURIFY = "PURIFY"
 
 
 class LouverSwingMode(str, Enum):
@@ -115,6 +133,22 @@ class ApplianceSensor(ApplianceEntity):
     ) -> None:
         super().__init__(name, attr, device_class, entity_category, state_class)
         self.unit = unit
+
+
+class ApplianceHumidifier(ApplianceEntity):
+    entity_type: int = Platform.HUMIDIFIER
+    device_type = "dh"
+
+    def __init__(self, name, attr) -> None:
+        super().__init__(name, attr)
+
+
+class ApplianceHumidifierFan(ApplianceEntity):
+    entity_type: int = Platform.FAN
+    device_type = "dh"
+
+    def __init__(self, name, attr) -> None:
+        super().__init__(name, attr)
 
 
 class ApplianceFan(ApplianceEntity):
@@ -246,10 +280,14 @@ class Appliance:
                     device_class=SensorDeviceClass.TEMPERATURE,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
-                # ApplianceFan(
+                # ApplianceHumidifier(
                 #     name="Electrolux Dehumidifier", 
-                #     attr="fanSpeedSetting",
+                #     attr="mode",
                 # ),
+                ApplianceHumidifierFan(
+                    name="Electrolux Dehumidifier", 
+                    attr="fanSpeedSetting",
+                ),
             ],
 
             Model.UltimateHome700: [
@@ -525,20 +563,28 @@ class Appliance:
             self.firmware = data.get("applianceUiSwVersion")
         if "Workmode" in data:
             self.mode = WorkMode(data.get("Workmode"))
+        if "operativeMode" in data:
+            self.operative_mode = OperativeMode(data.get("operativeMode"))
+        if "mode" in data:
+            self.functionMode = FunctionMode(data.get("mode"))
         if "LouverSwingWorkmode" in data:
             self.louver_swing_mode = LouverSwingMode(data.get("LouverSwing"))
         if "powerMode" in data:
             self.power_mode = data.get("powerMode")
         if "batteryStatus" in data:
             self.battery_status = data.get("batteryStatus")
+        if "applianceState" in data:
+            self.power_status = PowerStatus(data.get("applianceState"))
 
         self.capabilities = capabilities
         self.entities = [entity.setup(data) for entity in Appliance._create_entities(data, self.model) if entity.attr in data]
 
     @property
-    def preset_modes(self) -> list[WorkMode]:
+    def preset_modes(self):
         if self.model == Model.Muju:
             return [WorkMode.SMART, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
+        elif self.model == Model.DH:
+            return [OperativeMode.AUTOMATIC, OperativeMode.MANUAL, OperativeMode.QUIET]
         return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET]
 
     def work_mode_from_preset_mode(self, preset_mode: str | None) -> WorkMode:
@@ -562,7 +608,7 @@ class Appliance:
         if self.model == Model.PUREA9:
             return 1, 9
         if self.model == Model.DH:
-            return 1, 4
+            return 1, 3
 
         ## AEG Devices:
         if self.model == Model.AX5:
@@ -687,6 +733,16 @@ class WellbeingApiClient:
         result = await appliance.send_command(data)
         _LOGGER.debug(f"Set Fan Speed: {result}")
 
+    async def set_dh_fan_speed(self, pnc_id: str, level: str):
+        data = {"fanSpeedSetting": level}
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to set fan speed for appliance with id {pnc_id}")
+            return
+
+        result = await appliance.send_command(data)
+        _LOGGER.debug(f"Set Fan Speed: {result}")
+
     async def set_work_mode(self, pnc_id: str, mode: WorkMode):
         data = {"Workmode": mode.value}
         appliance = self._api_appliances.get(pnc_id, None)
@@ -696,6 +752,36 @@ class WellbeingApiClient:
 
         result = await appliance.send_command(data)
         _LOGGER.debug(f"Set work mode: {result}")
+
+    async def set_dh_work_mode(self, pnc_id: str, mode: OperativeMode):
+        data = {"operativeMode": mode.value}
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
+            return
+
+        result = await appliance.send_command(data)
+        _LOGGER.debug(f"Set work mode: {result}")
+
+    async def set_dh_power_on(self, pnc_id: str):
+        data = {"executeCommand": "ON"}
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
+            return
+
+        result = await appliance.send_command(data)
+        _LOGGER.debug(f"Set power on: {result}")
+
+    async def set_dh_power_off(self, pnc_id: str):
+        data = {"executeCommand": "OFF"}
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
+            return
+
+        result = await appliance.send_command(data)
+        _LOGGER.debug(f"Set power off: {result}")
 
     async def set_feature_state(self, pnc_id: str, attr: str, state: bool):
         """Set the state of an attr."""

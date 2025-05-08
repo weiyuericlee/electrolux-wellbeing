@@ -26,6 +26,7 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 PLATFORMS = [
     Platform.SENSOR,
     Platform.FAN,
+    Platform.HUMIDIFIER,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.VACUUM,

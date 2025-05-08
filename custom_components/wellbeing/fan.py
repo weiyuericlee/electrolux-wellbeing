@@ -9,7 +9,7 @@ from homeassistant.const import Platform
 from homeassistant.util.percentage import percentage_to_ranged_value, ranged_value_to_percentage
 
 from . import WellbeingDataUpdateCoordinator
-from .api import WorkMode
+from .api import WorkMode, OperativeMode, PowerStatus
 from .const import DOMAIN
 from .entity import WellbeingEntity
 
@@ -27,7 +27,14 @@ async def async_setup_entry(hass, entry, async_add_devices):
                 [
                     WellbeingFan(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
                     for entity in appliance.entities
-                    if entity.entity_type == Platform.FAN
+                    if entity.entity_type == Platform.FAN and getattr(entity, "device_type", None) != "dh"
+                ]
+            )
+            async_add_devices(
+                [
+                    WellbeingHumidifierFan(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
+                    for entity in appliance.entities
+                    if entity.entity_type == Platform.FAN and getattr(entity, "device_type", None) == "dh"
                 ]
             )
 
@@ -148,5 +155,101 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self.async_write_ha_state()
 
         await self.api.set_work_mode(self.pnc_id, WorkMode.OFF)
+        await asyncio.sleep(10)
+        await self.coordinator.async_request_refresh()
+
+
+class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
+    """wellbeing Sensor class."""
+
+    _attr_supported_features = (
+        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
+    )
+
+    def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
+        super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
+        self._speed_map = {
+            'HIGH': 3,
+            'MIDDLE': 2,
+            'LOW': 1,
+        }
+        self._inv_speed_map = {v: k for k, v in self._speed_map.items()}
+
+        self._power_status = self.get_appliance.power_status
+
+    @property
+    def _speed_range(self) -> tuple[int, int]:
+        return self.get_appliance.speed_range
+
+    @property
+    def speed_count(self) -> int:
+        """Return the number of speeds the fan supports."""
+        return self._speed_range[1]
+
+    @property
+    def percentage(self):
+        """Return the current speed percentage."""
+        if self.get_appliance.power_status == PowerStatus.OFF:
+            speed = 0
+        elif self.get_entity.state == 'AUTO':
+            speed = 1
+        else:
+            speed = self._speed_map[self.get_entity.state]
+        percentage = ranged_value_to_percentage(self._speed_range, speed)
+        _LOGGER.debug(f"percentage - speed: {speed} percentage: {percentage}")
+        return percentage
+
+    async def async_set_percentage(self, percentage: int) -> None:
+        """Set the speed percentage of the fan."""
+        speed = math.ceil(percentage_to_ranged_value(self._speed_range, percentage))
+
+        _LOGGER.debug(f"async_set_percentage - speed: {speed} percentage: {percentage}")
+
+        if percentage == 0 or speed == 0:
+            await self.async_turn_off()
+            return
+
+        if self.get_appliance.power_status == PowerStatus.OFF:
+            await self.async_turn_on()
+
+        is_manual = self.preset_mode == OperativeMode.MANUAL
+        # make sure manual is set before setting speed
+        if not is_manual:
+            await self.async_set_preset_mode(OperativeMode.MANUAL)
+
+        await self.api.set_dh_fan_speed(self.pnc_id, self._inv_speed_map[speed])
+
+        await asyncio.sleep(10)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def preset_mode(self):
+        """Return the current preset mode"""
+        return self.get_appliance.operative_mode
+
+    @property
+    def preset_modes(self):
+        """Return a list of available preset modes."""
+        return self.get_appliance.preset_modes
+
+    async def async_set_preset_mode(self, preset_mode: str) -> None:
+        """Set new preset mode."""
+        self._valid_preset_mode_or_raise(preset_mode)
+        await self.api.set_dh_work_mode(self.pnc_id, OperativeMode(preset_mode))
+        await asyncio.sleep(10)
+        await self.coordinator.async_request_refresh()
+
+    @property
+    def is_on(self):
+        return self.get_appliance.power_status != PowerStatus.OFF
+
+    async def async_turn_on(self, *args, **kwargs) -> None:
+        await self.api.set_dh_power_on(self.pnc_id)
+        await asyncio.sleep(10)
+        await self.coordinator.async_request_refresh()
+
+
+    async def async_turn_off(self, *args, **kwargs) -> None:
+        await self.api.set_dh_power_off(self.pnc_id)
         await asyncio.sleep(10)
         await self.coordinator.async_request_refresh()

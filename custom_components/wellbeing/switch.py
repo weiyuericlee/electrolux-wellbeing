@@ -16,7 +16,6 @@ async def async_setup_entry(hass, entry, async_add_devices):
 
     if appliances is not None:
         for pnc_id, appliance in appliances.appliances.items():
-            # Assuming that the appliance supports these features
             async_add_devices(
                 [
                     WellbeingSwitch(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
