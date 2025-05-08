@@ -240,16 +240,6 @@ class Appliance:
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
                 ApplianceSensor(
-                    name="Mode",
-                    attr="mode",
-                    device_class=SensorDeviceClass.ENUM,
-                ),
-                ApplianceSensor(
-                    name="Function",
-                    attr="operativeMode",
-                    device_class=SensorDeviceClass.ENUM,
-                ),
-                ApplianceSensor(
                     name="Hepa Filter", 
                     attr="hepaFilterState", 
                     device_class=SensorDeviceClass.ENUM,
@@ -257,10 +247,6 @@ class Appliance:
                 ApplianceBinary(
                     name="Water Tank Full", 
                     attr="waterTankFull",
-                ),
-                ApplianceBinary(
-                    name="Appliance State", 
-                    attr="applianceState",
                 ),
                 ApplianceSensor(
                     name="Humidity",
