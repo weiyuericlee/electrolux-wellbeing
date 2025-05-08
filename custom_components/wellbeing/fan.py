@@ -163,7 +163,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
     """wellbeing Sensor class."""
 
     _attr_supported_features = (
-        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
+        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.OSCILLATE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
     )
 
     def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
@@ -175,16 +175,9 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         }
         self._inv_speed_map = {v: k for k, v in self._speed_map.items()}
 
-        self._power_status = self.get_appliance.power_status
-
     @property
     def _speed_range(self) -> tuple[int, int]:
         return self.get_appliance.speed_range
-
-    @property
-    def speed_count(self) -> int:
-        """Return the number of speeds the fan supports."""
-        return self._speed_range[1]
 
     @property
     def percentage(self):
@@ -192,12 +185,14 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         if self.get_appliance.power_status == PowerStatus.OFF:
             speed = 0
         elif self.get_entity.state == 'AUTO':
-            speed = 1
+            speed = 3
         else:
             speed = self._speed_map[self.get_entity.state]
+
         percentage = ranged_value_to_percentage(self._speed_range, speed)
         _LOGGER.debug(f"percentage - speed: {speed} percentage: {percentage}")
         return percentage
+
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
@@ -213,14 +208,15 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
             await self.async_turn_on()
 
         is_manual = self.preset_mode == OperativeMode.MANUAL
-        # make sure manual is set before setting speed
         if not is_manual:
             await self.async_set_preset_mode(OperativeMode.MANUAL)
 
-        await self.api.set_dh_fan_speed(self.pnc_id, self._inv_speed_map[speed])
+        set_speed = self._inv_speed_map[speed]
+        await self.api.set_dh_fan_speed(self.pnc_id, set_speed)
 
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+        self.get_entity.set_state(set_speed)
+        self.async_write_ha_state()
+
 
     @property
     def preset_mode(self):
@@ -236,8 +232,16 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         """Set new preset mode."""
         self._valid_preset_mode_or_raise(preset_mode)
         await self.api.set_dh_work_mode(self.pnc_id, OperativeMode(preset_mode))
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+
+    @property
+    def oscillating(self):
+        return self.get_appliance.oscillating
+
+    async def async_oscillate(self, oscillating: bool) -> None:
+        await self.api.set_dh_oscillate(self.pnc_id, oscillating)
+
+        self.get_appliance.set_oscillating(oscillating)
+        self.async_write_ha_state()
 
     @property
     def is_on(self):
@@ -245,11 +249,12 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
     async def async_turn_on(self, *args, **kwargs) -> None:
         await self.api.set_dh_power_on(self.pnc_id)
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
 
+        self.get_appliance.set_power_status(PowerStatus.ON)
+        self.async_write_ha_state()
 
     async def async_turn_off(self, *args, **kwargs) -> None:
         await self.api.set_dh_power_off(self.pnc_id)
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+
+        self.get_appliance.set_power_status(PowerStatus.OFF)
+        self.async_write_ha_state()

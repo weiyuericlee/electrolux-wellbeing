@@ -2,6 +2,7 @@
 
 import logging
 from enum import Enum
+from datetime import datetime as dt
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
@@ -114,6 +115,9 @@ class ApplianceEntity:
     def clear_state(self):
         self._state = None
 
+    def set_state(self, value):
+        self._state = value
+
     @property
     def state(self):
         return self._state
@@ -221,11 +225,6 @@ class Appliance:
                     name="Child Lock", 
                     attr="uiLockMode",
                     device_class=BinarySensorDeviceClass.LOCK,
-                ),
-                ApplianceSwitch(
-                    name="Fan Swing", 
-                    attr="verticalSwing",
-                    device_class=BinarySensorDeviceClass.MOVING,
                 ),
                 ApplianceSensor(
                     name="Air Quality", 
@@ -556,6 +555,12 @@ class Appliance:
     def set_mode(self, mode: WorkMode):
         self.mode = mode
 
+    def set_power_status(self, status: PowerStatus):
+        self.power_status = status
+
+    def set_oscillating(self, oscillating):
+        self.oscillating = oscillating
+
     def setup(self, data, capabilities):
         if "FrmVer_NIU" in data:
             self.firmware = data.get("FrmVer_NIU")
@@ -575,12 +580,14 @@ class Appliance:
             self.battery_status = data.get("batteryStatus")
         if "applianceState" in data:
             self.power_status = PowerStatus(data.get("applianceState"))
+        if "verticalSwing" in data:
+            self.oscillating = data.get("verticalSwing") == "ON"
 
         self.capabilities = capabilities
         self.entities = [entity.setup(data) for entity in Appliance._create_entities(data, self.model) if entity.attr in data]
 
     @property
-    def preset_modes(self):
+    def preset_modes(self) -> WorkMode | OperativeMode:
         if self.model == Model.Muju:
             return [WorkMode.SMART, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
         elif self.model == Model.DH:
@@ -656,12 +663,29 @@ class WellbeingApiClient:
         """Sample API Client."""
         self._api_appliances: dict[str, ApiAppliance] = {}
         self._hub = hub
+        self._last_execution = dt(1, 1, 1, 0, 0, 0, 0)
 
-    async def async_get_appliances(self) -> Appliances:
+    async def send_command(self, pnc_id, data):        
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to send command for appliance with id {pnc_id}")
+            return
+
+        _LOGGER.debug(f"Sending command: {data}")
+        self._last_execution = dt.now()
+        return await appliance.send_command(data)
+
+    async def async_get_appliances(self, update_interval) -> Appliances:
         """Get data from the API."""
 
-        appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
-        self._api_appliances = {appliance.id: appliance for appliance in appliances}
+        appliances = []
+        # Use cached status if a command was executed recently due to the slow Electrolux API update
+        if (dt.now() - self._last_execution) < update_interval / 2:
+            _LOGGER.debug(f"Cache is being used due to recent execution")
+            appliances: list[ApiAppliance] = list(self._api_appliances.values())
+        else:
+            appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
+            self._api_appliances = {appliance.id: appliance for appliance in appliances}
 
         found_appliances = {}
         for appliance in (appliance for appliance in appliances):
@@ -710,78 +734,35 @@ class WellbeingApiClient:
             case Model.PUREi9.value:
                 data = {"CleaningCommand": cmd}
 
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Vacuum command: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_vacuum_power_mode(self, pnc_id: str, mode: int):
         data = {"powerMode": mode}  # Not the right formatting. Disable FAN_SPEEDS until this is figured out
-
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set feature Power Mode to {mode} for appliance with id {pnc_id}")
-            return
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set Vacuum Power Mode: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_fan_speed(self, pnc_id: str, level: int):
         data = {"Fanspeed": level}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set fan speed for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set Fan Speed: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_dh_fan_speed(self, pnc_id: str, level: str):
         data = {"fanSpeedSetting": level}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set fan speed for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set Fan Speed: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_work_mode(self, pnc_id: str, mode: WorkMode):
         data = {"Workmode": mode.value}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set work mode: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_dh_work_mode(self, pnc_id: str, mode: OperativeMode):
         data = {"operativeMode": mode.value}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set work mode: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_dh_power_on(self, pnc_id: str):
         data = {"executeCommand": "ON"}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set power on: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_dh_power_off(self, pnc_id: str):
         data = {"executeCommand": "OFF"}
-        appliance = self._api_appliances.get(pnc_id, None)
-        if appliance is None:
-            _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
-            return
-
-        result = await appliance.send_command(data)
-        _LOGGER.debug(f"Set power off: {result}")
+        result = await self.send_command(pnc_id, data)
 
     async def set_feature_state(self, pnc_id: str, attr: str, state: bool):
         """Set the state of an attr."""
@@ -800,5 +781,12 @@ class WellbeingApiClient:
                 data = {attr: options[int(state)]}
         else:
             data = {attr: state}
-        await appliance.send_command(data)
-        _LOGGER.debug(f"Set {attr} State to {state}")
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_oscillate(self, pnc_id: str, oscillating: bool):
+        if oscillating:
+            data = {"verticalSwing": "ON"}
+        else:
+            data = {"verticalSwing": "OFF"}
+        result = await self.send_command(pnc_id, data)
+

@@ -86,12 +86,13 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, client: WellbeingApiClient, update_interval: timedelta) -> None:
         """Initialize."""
         self.api = client
+        self.update_interval = update_interval
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
 
     async def _async_update_data(self):
         """Update data via library."""
         try:
-            appliances = await self.api.async_get_appliances()
+            appliances = await self.api.async_get_appliances(self.update_interval)
             return {"appliances": appliances}
         except Exception as exception:
             raise UpdateFailed(exception) from exception
