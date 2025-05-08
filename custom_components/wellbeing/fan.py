@@ -196,9 +196,14 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
-        speed = math.ceil(percentage_to_ranged_value(self._speed_range, percentage))
-
         _LOGGER.debug(f"async_set_percentage - speed: {speed} percentage: {percentage}")
+
+        speed = math.ceil(percentage_to_ranged_value(self._speed_range, percentage))
+        set_speed = self._inv_speed_map[speed]
+
+        self.get_entity.set_state(set_speed)
+        self.async_write_ha_state()
+
 
         if percentage == 0 or speed == 0:
             await self.async_turn_off()
@@ -207,15 +212,11 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         if self.get_appliance.power_status == PowerStatus.OFF:
             await self.async_turn_on()
 
-        is_manual = self.preset_mode == OperativeMode.MANUAL
-        if not is_manual:
+        if self.preset_mode != OperativeMode.MANUAL:
             await self.async_set_preset_mode(OperativeMode.MANUAL)
+            await asyncio.sleep(2)
 
-        set_speed = self._inv_speed_map[speed]
         await self.api.set_dh_fan_speed(self.pnc_id, set_speed)
-
-        self.get_entity.set_state(set_speed)
-        self.async_write_ha_state()
 
 
     @property
@@ -228,33 +229,39 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         """Return a list of available preset modes."""
         return self.get_appliance.preset_modes
 
-    async def async_set_preset_mode(self, preset_mode: str) -> None:
+    async def async_set_preset_mode(self, mode: str) -> None:
         """Set new preset mode."""
-        self._valid_preset_mode_or_raise(preset_mode)
-        await self.api.set_dh_work_mode(self.pnc_id, OperativeMode(preset_mode))
+        self._valid_preset_mode_or_raise(mode)
+        preset_mode = OperativeMode(mode)
+
+        self.get_appliance.set_operative_mode(preset_mode)
+        self.async_write_ha_state()
+
+        await self.api.set_dh_work_mode(self.pnc_id, preset_mode)
 
     @property
     def oscillating(self):
         return self.get_appliance.oscillating
 
     async def async_oscillate(self, oscillating: bool) -> None:
-        await self.api.set_dh_oscillate(self.pnc_id, oscillating)
-
         self.get_appliance.set_oscillating(oscillating)
         self.async_write_ha_state()
 
+        await self.api.set_dh_oscillate(self.pnc_id, oscillating)
+
     @property
-    def is_on(self):
+    def is_on(self) -> bool:
         return self.get_appliance.power_status != PowerStatus.OFF
 
     async def async_turn_on(self, *args, **kwargs) -> None:
-        await self.api.set_dh_power_on(self.pnc_id)
-
         self.get_appliance.set_power_status(PowerStatus.ON)
         self.async_write_ha_state()
 
-    async def async_turn_off(self, *args, **kwargs) -> None:
-        await self.api.set_dh_power_off(self.pnc_id)
+        await self.api.set_dh_power_on(self.pnc_id)
 
+    async def async_turn_off(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.OFF)
         self.async_write_ha_state()
+        
+        await self.api.set_dh_power_off(self.pnc_id)
+

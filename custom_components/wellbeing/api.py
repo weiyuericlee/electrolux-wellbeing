@@ -6,6 +6,7 @@ from datetime import datetime as dt
 
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
+from homeassistant.components.humidifier import HumidifierDeviceClass 
 from homeassistant.const import (
     UnitOfTemperature,
     PERCENTAGE,
@@ -143,16 +144,16 @@ class ApplianceHumidifier(ApplianceEntity):
     entity_type: int = Platform.HUMIDIFIER
     device_type = "dh"
 
-    def __init__(self, name, attr) -> None:
-        super().__init__(name, attr)
+    def __init__(self, name, attr, device_class=None, entity_category: EntityCategory = UNDEFINED) -> None:
+        super().__init__(name, attr, device_class, entity_category)
 
 
 class ApplianceHumidifierFan(ApplianceEntity):
     entity_type: int = Platform.FAN
     device_type = "dh"
 
-    def __init__(self, name, attr) -> None:
-        super().__init__(name, attr)
+    def __init__(self, name, attr, device_class=None, entity_category: EntityCategory = UNDEFINED) -> None:
+        super().__init__(name, attr, device_class, entity_category)
 
 
 class ApplianceFan(ApplianceEntity):
@@ -173,7 +174,7 @@ class ApplianceSwitch(ApplianceEntity):
     entity_type: int = Platform.SWITCH
 
     def __init__(self, name, attr, device_class=None, entity_category: EntityCategory = UNDEFINED) -> None:
-        super().__init__(name, attr)
+        super().__init__(name, attr, device_class, entity_category)
 
     @property
     def state(self):
@@ -262,10 +263,6 @@ class Appliance:
                     attr="applianceState",
                 ),
                 ApplianceSensor(
-                    name="Target Humidity",
-                    attr="targetHumidity",
-                ),
-                ApplianceSensor(
                     name="Humidity",
                     attr="sensorHumidity",
                     unit=PERCENTAGE,
@@ -279,10 +276,11 @@ class Appliance:
                     device_class=SensorDeviceClass.TEMPERATURE,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
-                # ApplianceHumidifier(
-                #     name="Electrolux Dehumidifier", 
-                #     attr="mode",
-                # ),
+                ApplianceHumidifier(
+                    name="Electrolux Dehumidifier", 
+                    attr="targetHumidity",
+                    device_class=HumidifierDeviceClass.DEHUMIDIFIER,
+                ),
                 ApplianceHumidifierFan(
                     name="Electrolux Dehumidifier", 
                     attr="fanSpeedSetting",
@@ -555,6 +553,12 @@ class Appliance:
     def set_mode(self, mode: WorkMode):
         self.mode = mode
 
+    def set_operative_mode(self, mode: OperativeMode):
+        self.operative_mode = mode
+
+    def set_function_mode(self, mode: FunctionMode):
+        self.function_mode = mode
+
     def set_power_status(self, status: PowerStatus):
         self.power_status = status
 
@@ -571,7 +575,7 @@ class Appliance:
         if "operativeMode" in data:
             self.operative_mode = OperativeMode(data.get("operativeMode"))
         if "mode" in data:
-            self.functionMode = FunctionMode(data.get("mode"))
+            self.function_mode = FunctionMode(data.get("mode"))
         if "LouverSwingWorkmode" in data:
             self.louver_swing_mode = LouverSwingMode(data.get("LouverSwing"))
         if "powerMode" in data:
@@ -593,6 +597,10 @@ class Appliance:
         elif self.model == Model.DH:
             return [OperativeMode.AUTOMATIC, OperativeMode.MANUAL, OperativeMode.QUIET]
         return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET]
+
+    @property
+    def available_modes(self) -> FunctionMode:
+        return [FunctionMode.COMPLETE, FunctionMode.CONTINUOUS, FunctionMode.DRY, FunctionMode.PURIFY]
 
     def work_mode_from_preset_mode(self, preset_mode: str | None) -> WorkMode:
         if preset_mode:
@@ -678,8 +686,8 @@ class WellbeingApiClient:
     async def async_get_appliances(self, update_interval) -> Appliances:
         """Get data from the API."""
 
-        appliances = []
         # Use cached status if a command was executed recently due to the slow Electrolux API update
+        appliances = []
         if (dt.now() - self._last_execution) < update_interval / 2:
             _LOGGER.debug(f"Cache is being used due to recent execution")
             appliances: list[ApiAppliance] = list(self._api_appliances.values())
@@ -762,6 +770,14 @@ class WellbeingApiClient:
 
     async def set_dh_power_off(self, pnc_id: str):
         data = {"executeCommand": "OFF"}
+        result = await self.send_command(pnc_id, data)
+
+    async def set_dh_function_mode(self, pnc_id: str, mode: FunctionMode):
+        data = {"mode": mode.value}
+        result = await self.send_command(pnc_id, data)
+
+    async def set_dh_target_humidity(self, pnc_id: str, humidity: float):
+        data = {"targetHumidity": humidity}
         result = await self.send_command(pnc_id, data)
 
     async def set_feature_state(self, pnc_id: str, attr: str, state: bool):
