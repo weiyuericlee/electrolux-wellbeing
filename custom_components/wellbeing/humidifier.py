@@ -64,6 +64,9 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
         self.get_appliance.set_function_mode(function_mode)
         self.async_write_ha_state()
 
+        if self.get_appliance.power_status == PowerStatus.OFF:
+            await self.async_turn_on()
+
         await self.api.set_dh_function_mode(self.pnc_id, function_mode)
 
     @property
@@ -88,7 +91,7 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
 
         if self.mode != FunctionMode.COMPLETE:
             await self.async_set_mode(FunctionMode.COMPLETE)
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
 
         await self.api.set_dh_target_humidity(self.pnc_id, humidity)
 

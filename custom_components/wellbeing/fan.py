@@ -215,7 +215,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
         if self.preset_mode != OperativeMode.MANUAL:
             await self.async_set_preset_mode(OperativeMode.MANUAL)
-            await asyncio.sleep(2)
+            await asyncio.sleep(1)
 
         await self.api.set_dh_fan_speed(self.pnc_id, set_speed)
 
