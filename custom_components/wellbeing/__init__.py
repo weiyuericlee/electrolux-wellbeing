@@ -51,14 +51,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     client = WellbeingApiClient(hub)
 
-    coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
-
-    await coordinator.async_config_entry_first_refresh()
+    if entry.entry_id not in hass.data[DOMAIN]:
+        coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
+        hass.data[DOMAIN][entry.entry_id] = coordinator
+        await coordinator.async_config_entry_first_refresh()
+    else:
+        coordinator = hass.data[DOMAIN][entry.entry_id]
 
     if not coordinator.last_update_success:
         raise ConfigEntryNotReady from coordinator.last_exception
-
-    hass.data[DOMAIN][entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
