@@ -32,7 +32,11 @@ class WellbeingSensor(WellbeingEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        return self.get_entity.state
+        value = self.get_entity.state
+        if value == 65535:
+            return -1
+        else:
+            return self.get_entity.state
 
     @property
     def native_unit_of_measurement(self):

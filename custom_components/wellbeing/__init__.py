@@ -26,17 +26,21 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 PLATFORMS = [
     Platform.SENSOR,
     Platform.FAN,
+    Platform.HUMIDIFIER,
     Platform.BINARY_SENSOR,
     Platform.SWITCH,
     Platform.VACUUM,
 ]
-
+success = 0
+failed = 0
 
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     """Set up this integration using UI."""
     if hass.data.get(DOMAIN) is None:
         hass.data.setdefault(DOMAIN, {})
 
+    hass.data['success_count'] = success
+    hass.data['failed_count'] = failed
     if entry.options.get(CONF_SCAN_INTERVAL):
         update_interval = timedelta(seconds=entry.options[CONF_SCAN_INTERVAL])
     else:
@@ -50,14 +54,15 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     client = WellbeingApiClient(hub)
 
-    coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
-
-    await coordinator.async_config_entry_first_refresh()
+    if entry.entry_id not in hass.data[DOMAIN]:
+        coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
+        hass.data[DOMAIN][entry.entry_id] = coordinator
+        await coordinator.async_config_entry_first_refresh()
+    else:
+        coordinator = hass.data[DOMAIN][entry.entry_id]
 
     if not coordinator.last_update_success:
         raise ConfigEntryNotReady from coordinator.last_exception
-
-    hass.data[DOMAIN][entry.entry_id] = coordinator
 
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
@@ -85,15 +90,21 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
     def __init__(self, hass: HomeAssistant, client: WellbeingApiClient, update_interval: timedelta) -> None:
         """Initialize."""
         self.api = client
+        self.update_interval = update_interval
+        self.hass = hass
         super().__init__(hass, _LOGGER, name=DOMAIN, update_interval=update_interval)
 
     async def _async_update_data(self):
         """Update data via library."""
         try:
-            appliances = await self.api.async_get_appliances()
+            appliances = await self.api.async_get_appliances(self.update_interval)
+            _LOGGER.debug(f"Updated s: {self.hass.data.get("success_count", {})}, f: {self.hass.data.get("failed_count", {})}")
             return {"appliances": appliances}
         except Exception as exception:
+            self.hass.data.get["failed_count"] += 1
+            _LOGGER.error(f"Update failed with {exception} s: {self.hass.data.get("success_count", {})}, f: {self.hass.data.get("failed_count", {})}")
             raise UpdateFailed(exception) from exception
+        self.hass.data.get["success_count"] += 1
 
 
 class WellBeingTokenManager(TokenManager):
