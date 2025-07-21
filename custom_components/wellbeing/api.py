@@ -683,6 +683,9 @@ class WellbeingApiClient:
 
         found_appliances = {}
         for appliance in (appliance for appliance in appliances):
+            if len(appliances) > 1:
+                _LOGGER.warning(appliances)
+
             await appliance.async_update()
 
             model_name = appliance.type
