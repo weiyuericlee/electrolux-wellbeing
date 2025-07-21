@@ -134,9 +134,9 @@ class WellBeingConfigFlowTokenManager(TokenManager):
 class WellbeingOptionsFlowHandler(config_entries.OptionsFlow):
     """Config flow options handler for wellbeing."""
 
-    def __init__(self, config_entry: ConfigEntry):
+    def __init__(self, config_entry):
         """Initialize HACS options flow."""
-        super().__init__(config_entry)
+        self.config_entry = config_entry
         self.options = dict(config_entry.options)
 
     async def async_step_init(self, user_input=None):  # pylint: disable=unused-argument

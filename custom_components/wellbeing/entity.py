@@ -54,7 +54,7 @@ class WellbeingEntity(CoordinatorEntity):
         return {
             "integration": DOMAIN,
             "capabilities": [
-                key for key, value in self.get_appliance.capabilities.items() if value.get("access") == "readwrite"
+                key for key, value in self.get_appliance.capabilities.items() if value["access"] == "readwrite"
             ],
         }
 
