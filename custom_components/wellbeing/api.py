@@ -653,11 +653,12 @@ class Appliances:
 
 class WellbeingApiClient:
 
-    def __init__(self, hub: ElectroluxHubAPI) -> None:
+    def __init__(self, hub: ElectroluxHubAPI, data, entry_id) -> None:
         """Sample API Client."""
         self._api_appliances: dict[str, ApiAppliance] = {}
         self._hub = hub
-        self._last_execution = dt(1, 1, 1, 0, 0, 0, 0)
+        self.data = data
+        self.entry_id = entry_id
 
     async def send_command(self, pnc_id, data):        
         appliance = self._api_appliances.get(pnc_id, None)
@@ -666,25 +667,22 @@ class WellbeingApiClient:
             return
 
         _LOGGER.debug(f"Sending command: {data}")
-        self._last_execution = dt.now()
+        _LOGGER.warning(f"Command sent with object: {self.data.get(self.entry_id, 'NA')}")
         return await appliance.send_command(data)
 
-    async def async_get_appliances(self, update_interval) -> Appliances:
+    async def async_get_appliances(self) -> Appliances:
         """Get data from the API."""
 
         # Use cached status if a command was executed recently due to the slow Electrolux API update
-        appliances = []
-        if (dt.now() - self._last_execution) < update_interval / 2:
-            _LOGGER.debug(f"Cache is being used due to recent execution")
-            appliances: list[ApiAppliance] = list(self._api_appliances.values())
-        else:
-            appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
-            self._api_appliances = {appliance.id: appliance for appliance in appliances}
+        appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
+        self._api_appliances = {appliance.id: appliance for appliance in appliances}
+        _LOGGER.warning(f"Refresh with object: {self.data.get(self.entry_id, 'NA')}")
 
         found_appliances = {}
         for appliance in (appliance for appliance in appliances):
-            if len(appliances) > 1:
-                _LOGGER.warning(appliances)
+            if len(appliances) != 1:
+                _LOGGER.error("Incorrect appliances count")
+                _LOGGER.error(appliances)
 
             await appliance.async_update()
 

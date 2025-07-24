@@ -49,7 +49,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     except Exception as exception:
         raise ConfigEntryAuthFailed("Failed to setup API") from exception
 
-    client = WellbeingApiClient(hub)
+    client = WellbeingApiClient(hub, hass.data[DOMAIN], entry.entry_id)
 
     if entry.entry_id not in hass.data[DOMAIN]:
         coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
@@ -71,8 +71,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry."""
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        hass.data[DOMAIN].pop(entry.entry_id)
-
+        _LOGGER.warning(f"Unloading entry with: {entry.entry_id}")
+        coordinator = hass.data[DOMAIN].pop(entry.entry_id)
+        await coordinator.async_shutdown()
     return unload_ok
 
 
@@ -93,10 +94,25 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
     async def _async_update_data(self):
         """Update data via library."""
         try:
-            appliances = await self.api.async_get_appliances(self.update_interval)
+            appliances = await self.api.async_get_appliances()
             return {"appliances": appliances}
         except Exception as exception:
             raise UpdateFailed(exception) from exception
+
+    async def async_shutdown(self):
+        if getattr(self, "_unsub_refresh", None):
+            _LOGGER.warning(f"Executing _unsub_refresh")
+            self._unsub_refresh()
+
+        update_task = getattr(self, "_update_task", None)
+        if update_task:
+            _LOGGER.warning(f"Cancelling _update_task")
+            update_task.cancel()
+            try:
+                await update_task
+            except asyncio.CancelledError:
+                pass
+
 
 
 class WellBeingTokenManager(TokenManager):
