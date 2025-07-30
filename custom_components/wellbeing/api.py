@@ -673,7 +673,6 @@ class WellbeingApiClient:
     async def async_get_appliances(self) -> Appliances:
         """Get data from the API."""
 
-        # Use cached status if a command was executed recently due to the slow Electrolux API update
         appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
         self._api_appliances = {appliance.id: appliance for appliance in appliances}
         _LOGGER.warning(f"Refresh with object: {self.data.get(self.entry_id, 'NA')}")

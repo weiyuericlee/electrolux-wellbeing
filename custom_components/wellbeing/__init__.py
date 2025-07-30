@@ -5,6 +5,7 @@ For more details about this integration, please refer to
 https://github.com/JohNan/homeassistant-wellbeing
 """
 
+import asyncio
 import logging
 from datetime import timedelta
 
@@ -112,6 +113,9 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
                 await update_task
             except asyncio.CancelledError:
                 pass
+
+        _LOGGER.warning(f"Sleep for {self.update_interval} seconds after unloading")
+        await asyncio.sleep(self.update_interval)
 
 
 
