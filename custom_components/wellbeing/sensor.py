@@ -12,7 +12,7 @@ from .entity import WellbeingEntity
 
 async def async_setup_entry(hass, entry, async_add_devices):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
     appliances = coordinator.data.get("appliances", None)
 
     if appliances is not None:

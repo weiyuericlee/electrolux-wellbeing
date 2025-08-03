@@ -653,12 +653,14 @@ class Appliances:
 
 class WellbeingApiClient:
 
-    def __init__(self, hub: ElectroluxHubAPI, data, entry_id) -> None:
+    def __init__(self, hub: ElectroluxHubAPI) -> None:
         """Sample API Client."""
         self._api_appliances: dict[str, ApiAppliance] = {}
+        self._coordinator = None
         self._hub = hub
-        self.data = data
-        self.entry_id = entry_id
+
+    def set_coordinator(self, coordinator):
+        self._coordinator = coordinator
 
     async def send_command(self, pnc_id, data):        
         appliance = self._api_appliances.get(pnc_id, None)
@@ -667,52 +669,57 @@ class WellbeingApiClient:
             return
 
         _LOGGER.debug(f"Sending command: {data}")
-        _LOGGER.warning(f"Command sent with object: {self.data.get(self.entry_id, 'NA')}")
+        _LOGGER.debug(f"Command sent with object: {self._coordinator}")
         return await appliance.send_command(data)
 
     async def async_get_appliances(self) -> Appliances:
         """Get data from the API."""
+        try:
+            appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
+            self._api_appliances = {appliance.id: appliance for appliance in appliances}
 
-        appliances: list[ApiAppliance] = await self._hub.async_get_appliances()
-        self._api_appliances = {appliance.id: appliance for appliance in appliances}
-        _LOGGER.warning(f"Refresh with object: {self.data.get(self.entry_id, 'NA')}")
-
-        found_appliances = {}
-        for appliance in (appliance for appliance in appliances):
+            found_appliances = {}
             if len(appliances) != 1:
                 _LOGGER.error("Incorrect appliances count")
                 _LOGGER.error(appliances)
+                
+            for appliance in appliances:
 
-            await appliance.async_update()
+                await appliance.async_update()
 
-            model_name = appliance.type
-            appliance_id = appliance.id
-            appliance_name = appliance.name
+                model_name = appliance.type
+                appliance_id = appliance.id
+                appliance_name = appliance.name
 
-            _LOGGER.debug(f"Appliance initial: {appliance.initial_data}")
-            _LOGGER.debug(f"Appliance state: {appliance.state}")
+                # _LOGGER.debug(f"Appliance initial: {appliance.initial_data}")
+                # _LOGGER.debug(f"Appliance state: {appliance.state}")
 
-            if (
-                appliance.device_type != "AIR_PURIFIER"
-                and appliance.device_type != "ROBOTIC_VACUUM_CLEANER"
-                and appliance.device_type != "MULTI_AIR_PURIFIER"
-                and appliance.device_type != "DEHUMIDIFIER"
-            ):
-                continue
+                if (
+                    appliance.device_type != "AIR_PURIFIER"
+                    and appliance.device_type != "ROBOTIC_VACUUM_CLEANER"
+                    and appliance.device_type != "MULTI_AIR_PURIFIER"
+                    and appliance.device_type != "DEHUMIDIFIER"
+                ):
+                    continue
 
-            app = Appliance(appliance_name, appliance_id, model_name)
-            app.brand = appliance.brand
-            app.serialNumber = appliance.serial_number
-            app.device = appliance.device_type
+                app = Appliance(appliance_name, appliance_id, model_name)
+                app.brand = appliance.brand
+                app.serialNumber = appliance.serial_number
+                app.device = appliance.device_type
 
-            data = appliance.state
-            data["status"] = appliance.state_data.get("status", "unknown")
-            data["connectionState"] = appliance.state_data.get("connectionState", "unknown")
+                data = appliance.state
+                data["status"] = appliance.state_data.get("status", "unknown")
+                data["connectionState"] = appliance.state_data.get("connectionState", "unknown")
 
-            app.setup(data, appliance.capabilities_data)
+                app.setup(data, appliance.capabilities_data)
 
-            found_appliances[app.pnc_id] = app
+                found_appliances[app.pnc_id] = app
 
+        except Exception as e:
+            _LOGGER.error("Error in async_get_appliances")
+            _LOGGER.exception(e)
+            raise
+            
         return Appliances(found_appliances)
 
     async def command_vacuum(self, pnc_id: str, cmd: str):

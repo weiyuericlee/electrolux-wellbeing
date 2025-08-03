@@ -18,7 +18,7 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 async def async_setup_entry(hass, entry, async_add_devices):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
     appliances = coordinator.data.get("appliances", None)
 
     if appliances is not None:
@@ -68,7 +68,6 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         else:
             speed = self._speed if self.get_entity.state is None else self.get_entity.state
         percentage = ranged_value_to_percentage(self._speed_range, speed)
-        _LOGGER.debug(f"percentage - speed: {speed} percentage: {percentage}")
         return percentage
 
     async def async_set_percentage(self, percentage: int) -> None:
@@ -76,8 +75,6 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self._speed = math.floor(percentage_to_ranged_value(self._speed_range, percentage))
         self.get_entity.clear_state()
         self.async_write_ha_state()
-
-        _LOGGER.debug(f"async_set_percentage - speed: {self._speed} percentage: {percentage}")
 
         if percentage == 0:
             await self.async_turn_off()
@@ -191,7 +188,6 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
             speed = self._speed_map[self.get_entity.state]
 
         percentage = ranged_value_to_percentage(self._speed_range, speed)
-        _LOGGER.debug(f"percentage - speed: {speed} percentage: {percentage}")
         return percentage
 
 
@@ -199,8 +195,6 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         """Set the speed percentage of the fan."""
         speed = math.ceil(percentage_to_ranged_value(self._speed_range, percentage))
         set_speed = self._inv_speed_map[speed]
-
-        _LOGGER.debug(f"async_set_percentage - speed: {speed} percentage: {percentage}")
 
         self.get_entity.set_state(set_speed)
         self.async_write_ha_state()
