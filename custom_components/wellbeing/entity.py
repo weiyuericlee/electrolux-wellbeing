@@ -3,7 +3,6 @@
 from homeassistant.components.sensor import ENTITY_ID_FORMAT
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import slugify
 from . import WellbeingDataUpdateCoordinator
 from .api import Appliance, ApplianceEntity
 
@@ -19,9 +18,7 @@ class WellbeingEntity(CoordinatorEntity):
         self.entity_type = entity_type
         self.config_entry = config_entry
         self.pnc_id = pnc_id
-        self.entity_id = ENTITY_ID_FORMAT.format(
-            slugify(f"{DEFAULT_NAME}_{self.get_appliance.name}_{self.entity_attr}")
-        )
+        self.entity_id = ENTITY_ID_FORMAT.format(f"{DEFAULT_NAME}_{self.get_appliance.name}_{self.entity_attr}").lower().replace(' ', '_')
 
     @property
     def name(self):
@@ -57,7 +54,7 @@ class WellbeingEntity(CoordinatorEntity):
         return {
             "integration": DOMAIN,
             "capabilities": [
-                key for key, value in self.get_appliance.capabilities.items() if value["access"] == "readwrite"
+                key for key, value in self.get_appliance.capabilities.items() if value.get("access") == "readwrite"
             ],
         }
 
