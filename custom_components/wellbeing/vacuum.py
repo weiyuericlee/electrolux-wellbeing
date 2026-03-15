@@ -2,14 +2,12 @@
 
 import logging
 
-from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature
+from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature, Segment
 from homeassistant.const import Platform
-from homeassistant.util.percentage import ranged_value_to_percentage
 
 from . import WellbeingDataUpdateCoordinator
 from .const import DOMAIN
 from .entity import WellbeingEntity
-from .api import Model
 from typing import Any
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
@@ -19,7 +17,9 @@ SUPPORTED_FEATURES = (
     | VacuumEntityFeature.STOP
     | VacuumEntityFeature.PAUSE
     | VacuumEntityFeature.RETURN_HOME
-    | VacuumEntityFeature.BATTERY
+    | VacuumEntityFeature.FAN_SPEED
+    | VacuumEntityFeature.SEND_COMMAND
+    | VacuumEntityFeature.CLEAN_AREA
 )
 
 VACUUM_ACTIVITIES = {
@@ -43,8 +43,6 @@ VACUUM_ACTIVITIES = {
     "paused": VacuumActivity.PAUSED,  # robot700series paused
     "sleeping": VacuumActivity.DOCKED,  # robot700series sleeping
 }
-
-VACUUM_CHARGING_STATES = [9, "idle"]
 
 
 async def async_setup_entry(hass, entry, async_add_devices):
@@ -75,12 +73,7 @@ class WellbeingVacuum(WellbeingEntity, StateVacuumEntity):
         entity_attr,
     ):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
-        self._fan_speeds = self.get_appliance.vacuum_fan_speeds
         self.entity_model = self.get_appliance.model
-
-    @property
-    def _battery_range(self) -> tuple[int, int]:
-        return self.get_appliance.battery_range
 
     @property
     def supported_features(self) -> int:
@@ -92,83 +85,44 @@ class WellbeingVacuum(WellbeingEntity, StateVacuumEntity):
         return VACUUM_ACTIVITIES.get(self.get_entity.state, VacuumActivity.ERROR)
 
     @property
-    def battery_level(self):
-        """Return the battery level of the vacuum."""
-        return ranged_value_to_percentage(self._battery_range, self.get_appliance.battery_status)
-
-    @property
-    def battery_icon(self):
-        """Return the battery icon of the vacuum based on the battery level."""
-        level = self.battery_level
-
-        charging = self.get_entity.state in VACUUM_CHARGING_STATES
-
-        level = 10 * round(level / 10)  # Round level to nearest 10 for icon selection
-
-        # Special cases given available icons
-        if level == 100 and charging:
-            return "mdi:battery-charging-100"
-        if level == 100 and not charging:
-            return "mdi:battery"
-        if level == 0 and charging:
-            return "mdi:battery-charging-outline"
-        if level == 0 and not charging:
-            return "mdi:battery-alert-variant-outline"
-        # General case
-        if level > 0 and level < 100:
-            return "mdi:battery-" + ("charging-" if charging else "") + f"{level}"
-        else:
-            return "mdi:battery-unknown"
-
-    @property
     def fan_speed(self):
-        """Return the fan speed of the vacuum cleaner."""
-        return self._fan_speeds.get(self.get_appliance.power_mode, "Unknown")
+        """Return the current fan speed of the vacuum."""
+        return self.get_appliance.vacuum_fan_speed
 
     @property
     def fan_speed_list(self):
-        """Get the list of available fan speed steps of the vacuum cleaner."""
-        return list(self._fan_speeds.values())
+        """Return the list of available fan speeds."""
+        return self.get_appliance.vacuum_fan_speed_list
 
     async def async_start(self):
-        command = ""
-        match self.entity_model:
-            case Model.PUREi9.value:
-                command = "play"
-            case Model.Robot700series.value:
-                command = "startGlobalClean"
-        await self.api.command_vacuum(self.pnc_id, command)
+        """Start the vacuum cleaner."""
+        await self.api.vacuum_start(self.pnc_id)
 
     async def async_stop(self):
-        command = ""
-        match self.entity_model:
-            case Model.PUREi9.value:
-                command = "stop"
-            case Model.Robot700series.value:
-                command = "stopClean"
-        await self.api.command_vacuum(self.pnc_id, command)
+        """Stop the vacuum cleaner."""
+        await self.api.vacuum_stop(self.pnc_id)
 
     async def async_pause(self):
-        command = ""
-        match self.entity_model:
-            case Model.PUREi9.value:
-                command = "pause"
-            case Model.Robot700series.value:
-                command = "pauseClean"
-        await self.api.command_vacuum(self.pnc_id, command)
+        """Pause the vacuum cleaner."""
+        await self.api.vacuum_pause(self.pnc_id)
 
     async def async_return_to_base(self):
-        command = ""
-        match self.entity_model:
-            case Model.PUREi9.value:
-                command = "home"
-            case Model.Robot700series.value:
-                command = "startGoToCharger"
-        await self.api.command_vacuum(self.pnc_id, command)
+        """Return the vacuum cleaner to its base."""
+        await self.api.vacuum_return_to_base(self.pnc_id)
 
-    async def async_set_fan_speed(self, fan_speed: str, **kwargs: Any):
+    async def async_set_fan_speed(self, fan_speed: str) -> None:
         """Set the fan speed of the vacuum cleaner."""
-        for mode, name in self._fan_speeds.items():
-            if name == fan_speed:
-                await self.api.set_vacuum_power_mode(self.pnc_id, mode)
-                break
+        await self.api.vacuum_set_fan_speed(self.pnc_id, self.get_appliance, fan_speed)
+        self.async_write_ha_state()  # Optimistically update the state before the next coordinator refresh
+
+    async def async_get_segments(self) -> list[Segment]:
+        """Get the segments that can be cleaned."""
+        return await self.api.vacuum_get_segments(self.pnc_id)
+
+    async def async_clean_segments(self, segment_ids: list[str], **kwargs: Any) -> None:
+        """Perform an area clean."""
+        await self.api.vacuum_clean_segments(self.pnc_id, segment_ids)
+
+    async def async_send_command(self, command: str, params: dict[str, Any] | None = None, **kwargs: Any) -> None:
+        """Send a custom command to the vacuum cleaner."""
+        await self.api.vacuum_send_command(self.pnc_id, command, params)
