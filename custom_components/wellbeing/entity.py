@@ -1,5 +1,6 @@
 """WellbeingEntity class"""
 
+import asyncio
 from homeassistant.components.sensor import ENTITY_ID_FORMAT
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -70,3 +71,8 @@ class WellbeingEntity(CoordinatorEntity):
     def entity_category(self) -> EntityCategory | None:
         """Return the entity category."""
         return self.get_entity.entity_category
+
+    async def _delayed_refresh(self, delay: int = 10) -> None:
+        """Refresh data after a delay."""
+        await asyncio.sleep(delay)
+        await self.coordinator.async_request_refresh()

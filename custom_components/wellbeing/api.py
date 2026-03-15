@@ -633,7 +633,12 @@ class Appliance:
             self.vacuum_mode = data.get("vacuumMode")
 
         self.capabilities = capabilities
-        self.entities = [entity.setup(data) for entity in Appliance._create_entities(data, self.model) if entity.attr in data]
+        if not hasattr(self, "entities") or not self.entities:
+            self.entities = [entity.setup(data) for entity in Appliance._create_entities(data, self.model) if entity.attr in data]
+        else:
+            for entity in self.entities:
+                if entity.attr in data:
+                    entity.setup(data)
 
     @property
     def preset_modes(self) -> WorkMode | OperativeMode:
@@ -744,6 +749,7 @@ class WellbeingApiClient:
     def __init__(self, hub: ElectroluxHubAPI) -> None:
         """Sample API Client."""
         self._api_appliances: dict[str, ApiAppliance] = {}
+        self._appliances: dict[str, Appliance] = {}
         self._coordinator = None
         self._hub = hub
         self._load_lock = asyncio.Lock()
@@ -799,10 +805,14 @@ class WellbeingApiClient:
                 ):
                     continue
 
-                app = Appliance(appliance_name, appliance_id, model_name)
-                app.brand = appliance.brand
-                app.serialNumber = appliance.serial_number
-                app.device = appliance.device_type
+                if appliance_id not in self._appliances:
+                    app = Appliance(appliance_name, appliance_id, model_name)
+                    app.brand = appliance.brand
+                    app.serialNumber = appliance.serial_number
+                    app.device = appliance.device_type
+                    self._appliances[appliance_id] = app
+                else:
+                    app = self._appliances[appliance_id]
 
                 data = appliance.state
                 data["status"] = appliance.state_data.get("status", "unknown")

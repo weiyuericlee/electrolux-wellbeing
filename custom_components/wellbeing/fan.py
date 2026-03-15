@@ -88,8 +88,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         await self.api.set_fan_speed(self.pnc_id, self._speed)
 
         self.async_write_ha_state()
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.hass.async_create_task(self._delayed_refresh(10))
 
     @property
     def preset_mode(self):
@@ -113,8 +112,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self.get_appliance.set_mode(self._preset_mode)
         self.async_write_ha_state()
         await self.api.set_work_mode(self.pnc_id, self._preset_mode)
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.hass.async_create_task(self._delayed_refresh(10))
 
     @property
     def is_on(self):
@@ -141,8 +139,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         if self._preset_mode != WorkMode.AUTO:
             await self.api.set_fan_speed(self.pnc_id, self._speed)
 
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.hass.async_create_task(self._delayed_refresh(10))
 
     async def async_turn_off(self, **kwargs) -> None:
         """Turn off the entity."""
@@ -152,8 +149,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self.async_write_ha_state()
 
         await self.api.set_work_mode(self.pnc_id, WorkMode.OFF)
-        await asyncio.sleep(10)
-        await self.coordinator.async_request_refresh()
+        self.coordinator.hass.async_create_task(self._delayed_refresh(10))
 
 
 class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
