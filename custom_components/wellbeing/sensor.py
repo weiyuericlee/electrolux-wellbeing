@@ -2,7 +2,8 @@
 
 from typing import cast
 
-from homeassistant.components.sensor import SensorEntity, SensorStateClass
+from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
+from homeassistant.util.percentage import ranged_value_to_percentage
 from homeassistant.const import Platform
 
 from .api import ApplianceSensor
@@ -12,7 +13,7 @@ from .entity import WellbeingEntity
 
 async def async_setup_entry(hass, entry, async_add_devices):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
+    coordinator = hass.data[DOMAIN][entry.entry_id]
     appliances = coordinator.data.get("appliances", None)
 
     if appliances is not None:
@@ -32,11 +33,12 @@ class WellbeingSensor(WellbeingEntity, SensorEntity):
     @property
     def native_value(self):
         """Return the state of the sensor."""
-        value = self.get_entity.state
-        if value == 65535:
-            return -1
-        else:
-            return self.get_entity.state
+        if self.device_class == SensorDeviceClass.BATTERY:
+            return ranged_value_to_percentage(
+                self.get_appliance.battery_range,
+                self.get_entity.state,
+            )
+        return self.get_entity.state
 
     @property
     def native_unit_of_measurement(self):

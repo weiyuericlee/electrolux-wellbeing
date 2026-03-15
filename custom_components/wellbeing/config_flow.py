@@ -110,6 +110,7 @@ class WellbeingFlowHandler(ConfigFlow, domain=DOMAIN):  # type: ignore[call-arg]
                     vol.Required(CONF_REFRESH_TOKEN): str,
                 }
             ),
+            description_placeholders={"docs_url": "https://github.com/JohNan/homeassistant-wellbeing"},
             errors=self._errors,
         )
 
@@ -134,7 +135,7 @@ class WellBeingConfigFlowTokenManager(TokenManager):
 class WellbeingOptionsFlowHandler(config_entries.OptionsFlow):
     """Config flow options handler for wellbeing."""
 
-    def __init__(self, config_entry: ConfigEntry):
+    def __init__(self, config_entry):
         """Initialize HACS options flow."""
         self.config_entry = config_entry
         self.options = dict(config_entry.options)
