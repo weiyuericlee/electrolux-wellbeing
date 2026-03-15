@@ -4,22 +4,21 @@ import asyncio
 import logging
 import math
 
-from homeassistant.components.humidifier import HumidifierEntity, HumidifierEntityFeature, HumidifierAction 
+from homeassistant.components.humidifier import HumidifierEntity, HumidifierEntityFeature, HumidifierAction
 from homeassistant.const import Platform
 from homeassistant.util.percentage import percentage_to_ranged_value, ranged_value_to_percentage
 
 from . import WellbeingDataUpdateCoordinator
-from .api import FunctionMode, PowerStatus
+from .models import FunctionMode, PowerStatus
 from .const import DOMAIN
 from .entity import WellbeingEntity
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 
-
 async def async_setup_entry(hass, entry, async_add_devices):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     appliances = coordinator.data.get("appliances", None)
 
     if appliances is not None:
@@ -36,16 +35,13 @@ async def async_setup_entry(hass, entry, async_add_devices):
 class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
     """wellbeing Sensor class."""
 
-    _attr_supported_features = (
-        HumidifierEntityFeature.MODES
-    )
+    _attr_supported_features = HumidifierEntityFeature.MODES
     _attr_translation_key = "wellbeing"
 
     def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
         self.min_humidity = 30
         self.max_humidity = 85
-        
 
     @property
     def mode(self) -> str:
@@ -60,7 +56,7 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
     async def async_set_mode(self, mode: str) -> None:
         """Set new preset mode."""
         function_mode = FunctionMode(mode)
-        
+
         self.get_appliance.set_function_mode(function_mode)
         self.async_write_ha_state()
 
@@ -94,7 +90,6 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
             await asyncio.sleep(1)
 
         await self.api.set_dh_target_humidity(self.pnc_id, humidity)
-
 
     @property
     def is_on(self) -> bool:

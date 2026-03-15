@@ -9,7 +9,7 @@ from homeassistant.const import Platform
 from homeassistant.util.percentage import percentage_to_ranged_value, ranged_value_to_percentage
 
 from . import WellbeingDataUpdateCoordinator
-from .api import WorkMode, OperativeMode, PowerStatus
+from .models import OperativeMode, PowerStatus, WorkMode
 from .const import DOMAIN
 from .entity import WellbeingEntity
 
@@ -18,7 +18,7 @@ _LOGGER: logging.Logger = logging.getLogger(__package__)
 
 async def async_setup_entry(hass, entry, async_add_devices):
     """Setup sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
+    coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
     appliances = coordinator.data.get("appliances", None)
 
     if appliances is not None:
@@ -156,16 +156,20 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
     """wellbeing Sensor class."""
 
     _attr_supported_features = (
-        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.OSCILLATE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
+        FanEntityFeature.SET_SPEED
+        | FanEntityFeature.PRESET_MODE
+        | FanEntityFeature.OSCILLATE
+        | FanEntityFeature.TURN_OFF
+        | FanEntityFeature.TURN_ON
     )
     _attr_translation_key = "wellbeing"
 
     def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
         self._speed_map = {
-            'HIGH': 3,
-            'MIDDLE': 2,
-            'LOW': 1,
+            "HIGH": 3,
+            "MIDDLE": 2,
+            "LOW": 1,
         }
         self._inv_speed_map = {v: k for k, v in self._speed_map.items()}
 
@@ -178,14 +182,13 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         """Return the current speed percentage."""
         if self.get_appliance.power_status == PowerStatus.OFF:
             speed = 0
-        elif self.get_entity.state == 'AUTO':
+        elif self.get_entity.state == "AUTO":
             speed = 3
         else:
             speed = self._speed_map[self.get_entity.state]
 
         percentage = ranged_value_to_percentage(self._speed_range, speed)
         return percentage
-
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
@@ -194,7 +197,6 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
         self.get_entity.set_state(set_speed)
         self.async_write_ha_state()
-
 
         if percentage == 0 or speed == 0:
             await self.async_turn_off()
@@ -208,7 +210,6 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
             await asyncio.sleep(1)
 
         await self.api.set_dh_fan_speed(self.pnc_id, set_speed)
-
 
     @property
     def preset_mode(self):
@@ -255,4 +256,3 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         self.async_write_ha_state()
 
         await self.api.set_dh_power_off(self.pnc_id)
-

@@ -59,12 +59,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     if entry.entry_id not in hass.data[DOMAIN]:
         coordinator = WellbeingDataUpdateCoordinator(hass, client=client, update_interval=update_interval)
         hass.data[DOMAIN][entry.entry_id] = {
-            'coordinator': coordinator,
-            'listeners': [],
+            "coordinator": coordinator,
+            "listeners": [],
         }
         await coordinator.async_config_entry_first_refresh()
     else:
-        coordinator = hass.data[DOMAIN][entry.entry_id]['coordinator']
+        coordinator = hass.data[DOMAIN][entry.entry_id]["coordinator"]
 
     client.set_coordinator(coordinator)
 
@@ -74,7 +74,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
     reload_listener = entry.add_update_listener(async_reload_entry)
-    hass.data[DOMAIN][entry.entry_id]['listeners'].append(reload_listener)
+    hass.data[DOMAIN][entry.entry_id]["listeners"].append(reload_listener)
     return True
 
 
@@ -83,7 +83,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     _LOGGER.debug(f"Unloading entry with: {entry.entry_id}")
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
     if unload_ok:
-        for remove_listener in hass.data[DOMAIN][entry.entry_id]['listeners']:
+        for remove_listener in hass.data[DOMAIN][entry.entry_id]["listeners"]:
             remove_listener()
         coordinator = hass.data[DOMAIN].pop(entry.entry_id)
     return unload_ok
