@@ -89,6 +89,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry):
 
     client.set_coordinator(coordinator)
 
+    await coordinator.async_config_entry_first_refresh()
+
     if use_stream:
         entry.async_create_background_task(
             hass, coordinator._listen_for_changes(), "wellbeing_stream"
