@@ -41,6 +41,15 @@ class WellbeingApiClient:
     def set_coordinator(self, coordinator):
         self._coordinator = coordinator
 
+    async def send_command(self, pnc_id, data):
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to send command to appliance with id {pnc_id}")
+            return
+
+        _LOGGER.debug(f"Sending command: {data}")
+        return await appliance.send_command(data)
+
     async def _ensure_loaded(self) -> None:
         if self._api_appliances:
             return
