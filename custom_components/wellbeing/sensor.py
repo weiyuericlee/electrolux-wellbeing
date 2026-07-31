@@ -10,9 +10,9 @@ from homeassistant.components.sensor import (
 from homeassistant.const import Platform
 from homeassistant.util.percentage import ranged_value_to_percentage
 
-from .models import ApplianceSensor
 from .const import DOMAIN
 from .entity import WellbeingEntity
+from .models import ApplianceSensor
 
 
 async def async_setup_entry(hass, entry, async_add_devices):

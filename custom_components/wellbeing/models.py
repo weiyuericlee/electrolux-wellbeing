@@ -3,10 +3,10 @@
 import logging
 from enum import Enum
 
+import voluptuous as vol
 from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.humidifier import HumidifierDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
-from homeassistant.components.vacuum import Segment
 from homeassistant.const import (
     CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
     CONCENTRATION_PARTS_PER_BILLION,
@@ -17,7 +17,6 @@ from homeassistant.const import (
     UnitOfTemperature,
 )
 from homeassistant.helpers.typing import UNDEFINED
-import voluptuous as vol
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

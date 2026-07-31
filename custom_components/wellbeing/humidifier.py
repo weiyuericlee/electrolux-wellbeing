@@ -2,16 +2,18 @@
 
 import asyncio
 import logging
-import math
 
-from homeassistant.components.humidifier import HumidifierEntity, HumidifierEntityFeature, HumidifierAction
+from homeassistant.components.humidifier import (
+    HumidifierAction,
+    HumidifierEntity,
+    HumidifierEntityFeature,
+)
 from homeassistant.const import Platform
-from homeassistant.util.percentage import percentage_to_ranged_value, ranged_value_to_percentage
 
 from . import WellbeingDataUpdateCoordinator
-from .models import FunctionMode, PowerStatus
 from .const import DOMAIN
 from .entity import WellbeingEntity
+from .models import FunctionMode, PowerStatus
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

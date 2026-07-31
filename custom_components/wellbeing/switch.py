@@ -1,6 +1,5 @@
 """Switch platform for Wellbeing."""
 
-import asyncio
 
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import Platform

@@ -1,14 +1,14 @@
 """WellbeingEntity class"""
 
 import asyncio
-from homeassistant.components.sensor import ENTITY_ID_FORMAT
+
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
 
 from . import WellbeingDataUpdateCoordinator
-from .models import Appliance, ApplianceEntity
 from .const import DEFAULT_NAME, DOMAIN
+from .models import Appliance, ApplianceEntity
 
 
 class WellbeingEntity(CoordinatorEntity):

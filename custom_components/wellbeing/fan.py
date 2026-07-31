@@ -12,9 +12,9 @@ from homeassistant.util.percentage import (
 )
 
 from . import WellbeingDataUpdateCoordinator
-from .models import OperativeMode, PowerStatus, WorkMode
 from .const import DOMAIN
 from .entity import WellbeingEntity
+from .models import OperativeMode, PowerStatus, WorkMode
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 

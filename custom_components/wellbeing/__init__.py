@@ -5,11 +5,11 @@ For more details about this integration, please refer to
 https://github.com/JohNan/homeassistant-wellbeing
 """
 
-import jwt
 import asyncio
 import logging
 from datetime import datetime, timedelta
 
+import jwt
 from aiohttp import ClientResponseError
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_ACCESS_TOKEN, CONF_API_KEY, Platform

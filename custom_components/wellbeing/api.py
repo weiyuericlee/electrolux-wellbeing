@@ -3,11 +3,10 @@
 import asyncio
 import copy
 import logging
-from enum import StrEnum
 
 import voluptuous as vol
+from homeassistant.components.vacuum import Segment
 from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers.typing import UNDEFINED
 from pyelectroluxgroup.api import ElectroluxHubAPI
 from pyelectroluxgroup.appliance import Appliance as ApiAppliance
 
@@ -25,29 +24,7 @@ from .models import (
     WorkMode,
 )
 
-import copy
-import logging
-from enum import StrEnum
-
-import voluptuous as vol
-from homeassistant.exceptions import ServiceValidationError
-from homeassistant.helpers.typing import UNDEFINED
-from pyelectroluxgroup.api import ElectroluxHubAPI
-from pyelectroluxgroup.appliance import Appliance as ApiAppliance
-
-from .models import (
-    FAN_SPEEDS_700SERIES,
-    FAN_SPEEDS_PUREI9,
-    FAN_SPEEDS_PUREI92,
-    INTERACTIVE_MAP_SCHEMA,
-    WATER_PUMP_RATES_700SERIES,
-    Appliance,
-    Appliances,
-    FunctionMode,
-    Model,
-    OperativeMode,
-    WorkMode,
-)
+_LOGGER: logging.Logger = logging.getLogger(__package__)
 
 
 class WellbeingApiClient:
