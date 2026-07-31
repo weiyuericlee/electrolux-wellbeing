@@ -5,24 +5,29 @@ from homeassistant.components.sensor import ENTITY_ID_FORMAT
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import slugify
+
 from . import WellbeingDataUpdateCoordinator
 from .models import Appliance, ApplianceEntity
-
-from .const import DEFAULT_NAME
-from .const import DOMAIN
+from .const import DEFAULT_NAME, DOMAIN
 
 
 class WellbeingEntity(CoordinatorEntity):
-    def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
+    def __init__(
+        self,
+        coordinator: WellbeingDataUpdateCoordinator,
+        config_entry,
+        pnc_id,
+        entity_type,
+        entity_attr,
+    ):
         super().__init__(coordinator)
         self.api = coordinator.api
         self.entity_attr = entity_attr
         self.entity_type = entity_type
         self.config_entry = config_entry
         self.pnc_id = pnc_id
-        self.entity_id = ENTITY_ID_FORMAT.format(
-            slugify(f"{DEFAULT_NAME}_{self.get_appliance.name}_{self.entity_attr}")
-        )
+        expected_domain = self.__class__.__module__.split(".")[-1]
+        self.entity_id = f"{expected_domain}.{slugify(f'{DEFAULT_NAME}_{self.get_appliance.name}_{self.entity_attr}')}"
 
     @property
     def name(self):
@@ -58,7 +63,9 @@ class WellbeingEntity(CoordinatorEntity):
         return {
             "integration": DOMAIN,
             "capabilities": [
-                key for key, value in self.get_appliance.capabilities.items() if value.get("access") == "readwrite"
+                key
+                for key, value in self.get_appliance.capabilities.items()
+                if isinstance(value, dict) and value.get("access") == "readwrite"
             ],
         }
 

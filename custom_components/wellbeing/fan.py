@@ -6,7 +6,10 @@ import math
 
 from homeassistant.components.fan import FanEntity, FanEntityFeature
 from homeassistant.const import Platform
-from homeassistant.util.percentage import percentage_to_ranged_value, ranged_value_to_percentage
+from homeassistant.util.percentage import (
+    percentage_to_ranged_value,
+    ranged_value_to_percentage,
+)
 
 from . import WellbeingDataUpdateCoordinator
 from .models import OperativeMode, PowerStatus, WorkMode
@@ -25,7 +28,9 @@ async def async_setup_entry(hass, entry, async_add_devices):
         for pnc_id, appliance in appliances.appliances.items():
             async_add_devices(
                 [
-                    WellbeingFan(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
+                    WellbeingFan(
+                        coordinator, entry, pnc_id, entity.entity_type, entity.attr
+                    )
                     for entity in appliance.entities
                     if entity.entity_type == Platform.FAN and getattr(entity, "device_type", None) != "dh"
                 ]
@@ -43,10 +48,20 @@ class WellbeingFan(WellbeingEntity, FanEntity):
     """wellbeing Sensor class."""
 
     _attr_supported_features = (
-        FanEntityFeature.SET_SPEED | FanEntityFeature.PRESET_MODE | FanEntityFeature.TURN_OFF | FanEntityFeature.TURN_ON
+        FanEntityFeature.SET_SPEED
+        | FanEntityFeature.PRESET_MODE
+        | FanEntityFeature.TURN_OFF
+        | FanEntityFeature.TURN_ON
     )
 
-    def __init__(self, coordinator: WellbeingDataUpdateCoordinator, config_entry, pnc_id, entity_type, entity_attr):
+    def __init__(
+        self,
+        coordinator: WellbeingDataUpdateCoordinator,
+        config_entry,
+        pnc_id,
+        entity_type,
+        entity_attr,
+    ):
         super().__init__(coordinator, config_entry, pnc_id, entity_type, entity_attr)
         self._preset_mode = self.get_appliance.mode
         self._speed = self.get_entity.state
@@ -63,19 +78,26 @@ class WellbeingFan(WellbeingEntity, FanEntity):
     @property
     def percentage(self):
         """Return the current speed percentage."""
-        if self._preset_mode == WorkMode.OFF:
+        if self.preset_mode == WorkMode.OFF:
             speed = 0
         else:
-            speed = self._speed if self.get_entity.state is None else self.get_entity.state
+            speed = (
+                self._speed if self.get_entity.state is None else self.get_entity.state
+            )
         percentage = ranged_value_to_percentage(self._speed_range, speed)
         return percentage
 
     async def async_set_percentage(self, percentage: int) -> None:
         """Set the speed percentage of the fan."""
-        self._speed = math.floor(percentage_to_ranged_value(self._speed_range, percentage))
+        self._speed = math.ceil(
+            percentage_to_ranged_value(self._speed_range, percentage)
+        )
         self.get_entity.clear_state()
         self.async_write_ha_state()
 
+        _LOGGER.debug(
+            f"async_set_percentage - speed: {self._speed} percentage: {percentage}"
+        )
         if percentage == 0:
             await self.async_turn_off()
             return
@@ -118,8 +140,14 @@ class WellbeingFan(WellbeingEntity, FanEntity):
     def is_on(self):
         return self.preset_mode != WorkMode.OFF
 
-    async def async_turn_on(self, percentage: int | None = None, preset_mode: str | None = None, **kwargs) -> None:
-        self._preset_mode = self.get_appliance.work_mode_from_preset_mode(preset_mode)
+    async def async_turn_on(
+        self, percentage: int | None = None, preset_mode: str | None = None, **kwargs
+    ) -> None:
+        self._preset_mode = (
+            WorkMode.MANUAL
+            if percentage is not None
+            else self.get_appliance.work_mode_from_preset_mode(preset_mode)
+        )
 
         # Handle incorrect percentage
         if percentage is not None and isinstance(percentage, str):
@@ -130,13 +158,15 @@ class WellbeingFan(WellbeingEntity, FanEntity):
                 return
 
         # Proceed with the provided or default percentage
-        self._speed = math.floor(percentage_to_ranged_value(self._speed_range, percentage or 10))
+        self._speed = math.ceil(
+            percentage_to_ranged_value(self._speed_range, percentage or 10)
+        )
         self.get_appliance.set_mode(self._preset_mode)
         self.async_write_ha_state()
 
         await self.api.set_work_mode(self.pnc_id, self._preset_mode)
 
-        if self._preset_mode != WorkMode.AUTO:
+        if self._preset_mode == WorkMode.MANUAL:
             await self.api.set_fan_speed(self.pnc_id, self._speed)
 
         self.coordinator.hass.async_create_task(self._delayed_refresh(10))

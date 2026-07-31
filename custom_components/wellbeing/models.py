@@ -188,6 +188,12 @@ class ApplianceEntity:
         return self._state
 
 
+class ApplianceClimate(ApplianceEntity):
+    entity_type: int = Platform.CLIMATE
+
+    def __init__(self, name, attr) -> None:
+        super().__init__(name, attr)
+
 class ApplianceSensor(ApplianceEntity):
     """Appliance sensor entity."""
 
