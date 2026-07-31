@@ -59,6 +59,10 @@ class WellbeingApiClient:
         self._load_lock = asyncio.Lock()
         self._use_stream = use_stream
         self._livestream_properties: dict[str, list[str]] = {}
+        self._coordinator = None
+
+    def set_coordinator(self, coordinator):
+        self._coordinator = coordinator
 
     async def _ensure_loaded(self) -> None:
         if self._api_appliances:
@@ -560,18 +564,54 @@ class WellbeingApiClient:
         _LOGGER.debug(f"Set work mode: {result}")
 
     async def set_feature_state(self, pnc_id: str, feature: str, state: bool):
-        """Set the state of a feature (Ionizer, UILight, SafetyLock)."""
-        # Construct the command directly using the feature name
-        data = {feature: state}
+        """Set the state of an attr."""
         appliance = self._api_appliances.get(pnc_id, None)
         if appliance is None:
-            _LOGGER.error(
-                f"Failed to set feature {feature} for appliance with id {pnc_id}"
-            )
+            _LOGGER.error(f"Failed to set attr {feature} for appliance with id {pnc_id}")
             return
 
-        await appliance.send_command(data)
-        _LOGGER.debug(f"Set {feature} State to {state}")
+        capability = appliance.capabilities.get(feature, {})
+        option_type = capability.get("type")
+        options = list(capability.get("values", {}).keys())
+        if option_type == "string" and options:
+            if options[0].lower() in ["enabled", "connected", "running", "on"]:
+                data = {feature: options[1-int(state)]}
+            else:
+                data = {feature: options[int(state)]}
+        else:
+            data = {feature: state}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_fan_speed(self, pnc_id: str, level: str):
+        data = {"fanSpeedSetting": level}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_work_mode(self, pnc_id: str, mode: OperativeMode):
+        data = {"operativeMode": mode.value}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_power_on(self, pnc_id: str):
+        data = {"executeCommand": "ON"}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_power_off(self, pnc_id: str):
+        data = {"executeCommand": "OFF"}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_function_mode(self, pnc_id: str, mode: FunctionMode):
+        data = {"mode": mode.value}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_target_humidity(self, pnc_id: str, humidity: float):
+        data = {"targetHumidity": humidity}
+        await self.send_command(pnc_id, data)
+
+    async def set_dh_oscillate(self, pnc_id: str, oscillating: bool):
+        if oscillating:
+            data = {"verticalSwing": "ON"}
+        else:
+            data = {"verticalSwing": "OFF"}
+        await self.send_command(pnc_id, data)
 
     async def ac_set_temperature(self, pnc_id: str, temp: float):
         data = {"targetTemperatureC": temp}
