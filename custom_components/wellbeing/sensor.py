@@ -2,13 +2,17 @@
 
 from typing import cast
 
-from homeassistant.components.sensor import SensorEntity, SensorDeviceClass, SensorStateClass
-from homeassistant.util.percentage import ranged_value_to_percentage
+from homeassistant.components.sensor import (
+    SensorDeviceClass,
+    SensorEntity,
+    SensorStateClass,
+)
 from homeassistant.const import Platform
+from homeassistant.util.percentage import ranged_value_to_percentage
 
-from .api import ApplianceSensor
 from .const import DOMAIN
 from .entity import WellbeingEntity
+from .models import ApplianceSensor
 
 
 async def async_setup_entry(hass, entry, async_add_devices):
@@ -20,7 +24,9 @@ async def async_setup_entry(hass, entry, async_add_devices):
         for pnc_id, appliance in appliances.appliances.items():
             async_add_devices(
                 [
-                    WellbeingSensor(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
+                    WellbeingSensor(
+                        coordinator, entry, pnc_id, entity.entity_type, entity.attr
+                    )
                     for entity in appliance.entities
                     if entity.entity_type == Platform.SENSOR
                 ]
@@ -34,11 +40,17 @@ class WellbeingSensor(WellbeingEntity, SensorEntity):
     def native_value(self):
         """Return the state of the sensor."""
         if self.device_class == SensorDeviceClass.BATTERY:
-            return ranged_value_to_percentage(
+            value = ranged_value_to_percentage(
                 self.get_appliance.battery_range,
                 self.get_entity.state,
             )
-        return self.get_entity.state
+        else:
+            value = self.get_entity.state
+
+        if value == 65535:
+            return -1
+        else:
+            return self.get_entity.state
 
     @property
     def native_unit_of_measurement(self):

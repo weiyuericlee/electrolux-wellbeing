@@ -1,14 +1,19 @@
 """Vacuum platform for Wellbeing."""
 
 import logging
+from typing import Any
 
-from homeassistant.components.vacuum import StateVacuumEntity, VacuumActivity, VacuumEntityFeature, Segment
+from homeassistant.components.vacuum import (
+    Segment,
+    StateVacuumEntity,
+    VacuumActivity,
+    VacuumEntityFeature,
+)
 from homeassistant.const import Platform
 
 from . import WellbeingDataUpdateCoordinator
 from .const import DOMAIN
 from .entity import WellbeingEntity
-from typing import Any
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
 
@@ -42,6 +47,9 @@ VACUUM_ACTIVITIES = {
     "goingHome": VacuumActivity.RETURNING,  # robot700series returning
     "paused": VacuumActivity.PAUSED,  # robot700series paused
     "sleeping": VacuumActivity.DOCKED,  # robot700series sleeping
+    "vacuuming": VacuumActivity.CLEANING,  # Cybele vacuuming
+    "mopping": VacuumActivity.CLEANING,  # Cybele mopping
+    "vaccumAndMopping": VacuumActivity.CLEANING,  # Cybele combined cleaning
 }
 
 
@@ -54,7 +62,9 @@ async def async_setup_entry(hass, entry, async_add_devices):
         for pnc_id, appliance in appliances.appliances.items():
             async_add_devices(
                 [
-                    WellbeingVacuum(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
+                    WellbeingVacuum(
+                        coordinator, entry, pnc_id, entity.entity_type, entity.attr
+                    )
                     for entity in appliance.entities
                     if entity.entity_type == Platform.VACUUM
                 ]
@@ -123,6 +133,8 @@ class WellbeingVacuum(WellbeingEntity, StateVacuumEntity):
         """Perform an area clean."""
         await self.api.vacuum_clean_segments(self.pnc_id, segment_ids)
 
-    async def async_send_command(self, command: str, params: dict[str, Any] | None = None, **kwargs: Any) -> None:
+    async def async_send_command(
+        self, command: str, params: dict[str, Any] | None = None, **kwargs: Any
+    ) -> None:
         """Send a custom command to the vacuum cleaner."""
         await self.api.vacuum_send_command(self.pnc_id, command, params)
