@@ -8,12 +8,11 @@ from homeassistant.components.binary_sensor import BinarySensorDeviceClass
 from homeassistant.components.humidifier import HumidifierDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass, SensorStateClass
 from homeassistant.const import (
-    CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
-    CONCENTRATION_PARTS_PER_BILLION,
-    CONCENTRATION_PARTS_PER_MILLION,
     PERCENTAGE,
     EntityCategory,
     Platform,
+    UnitOfDensity,
+    UnitOfRatio,
     UnitOfTemperature,
 )
 from homeassistant.helpers.typing import UNDEFINED
@@ -331,7 +330,7 @@ class Appliance:
                 ApplianceSensor(
                     name="PM2.5",
                     attr="pm25",
-                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                     device_class=SensorDeviceClass.PM25,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
@@ -372,7 +371,7 @@ class Appliance:
                 ApplianceSensor(
                     name="PM2.5",
                     attr="pm25",
-                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                     device_class=SensorDeviceClass.PM25,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
@@ -418,7 +417,7 @@ class Appliance:
                 ApplianceSensor(
                     name="PM2.5",
                     attr="PM2_5_approximate",
-                    unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                    unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                     device_class=SensorDeviceClass.PM25,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
@@ -473,7 +472,7 @@ class Appliance:
                 ApplianceSensor(
                     name="CO2",
                     attr="CO2",
-                    unit=CONCENTRATION_PARTS_PER_MILLION,
+                    unit=UnitOfRatio.PARTS_PER_MILLION,
                     device_class=SensorDeviceClass.CO2,
                     state_class=SensorStateClass.MEASUREMENT,
                 ),
@@ -538,33 +537,33 @@ class Appliance:
                 state_class=SensorStateClass.MEASUREMENT,
             ),
             ApplianceSensor(
-                name="TVOC", attr="TVOC", unit=CONCENTRATION_PARTS_PER_BILLION, state_class=SensorStateClass.MEASUREMENT
+                name="TVOC", attr="TVOC", unit=UnitOfRatio.PARTS_PER_BILLION, state_class=SensorStateClass.MEASUREMENT
             ),
             ApplianceSensor(
                 name="eCO2",
                 attr="ECO2",
-                unit=CONCENTRATION_PARTS_PER_MILLION,
+                unit=UnitOfRatio.PARTS_PER_MILLION,
                 device_class=SensorDeviceClass.CO2,
                 state_class=SensorStateClass.MEASUREMENT,
             ),
             ApplianceSensor(
                 name="PM1",
                 attr="PM1",
-                unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                 device_class=SensorDeviceClass.PM1,
                 state_class=SensorStateClass.MEASUREMENT,
             ),
             ApplianceSensor(
                 name="PM2.5",
                 attr="PM2_5",
-                unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                 device_class=SensorDeviceClass.PM25,
                 state_class=SensorStateClass.MEASUREMENT,
             ),
             ApplianceSensor(
                 name="PM10",
                 attr="PM10",
-                unit=CONCENTRATION_MICROGRAMS_PER_CUBIC_METER,
+                unit=UnitOfDensity.MICROGRAMS_PER_CUBIC_METER,
                 device_class=SensorDeviceClass.PM10,
                 state_class=SensorStateClass.MEASUREMENT,
             ),

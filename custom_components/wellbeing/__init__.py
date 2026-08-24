@@ -113,6 +113,8 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from the API."""
 
+    AUTH_FAILURE_THRESHOLD = 3
+
     def __init__(
         self,
         hass: HomeAssistant,
@@ -125,6 +127,7 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
         self.api = client
         self._idle_update_interval = update_interval
         self._active_update_interval = active_update_interval or update_interval
+        self._consecutive_auth_failures = 0
         super().__init__(
             hass,
             _LOGGER,
@@ -137,6 +140,7 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
         """Update data via library."""
         try:
             appliances = await self.api.async_get_appliances()
+            self._consecutive_auth_failures = 0
             self.update_interval = (
                 self._active_update_interval
                 if self._has_active_vacuum(appliances)
@@ -145,7 +149,25 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
             return {"appliances": appliances}
         except Exception as exception:
             if _is_authentication_error(exception):
-                raise ConfigEntryAuthFailed from exception
+                self._consecutive_auth_failures += 1
+                _LOGGER.warning(
+                    "Authentication error %d/%d: %s",
+                    self._consecutive_auth_failures,
+                    self.AUTH_FAILURE_THRESHOLD,
+                    exception,
+                )
+                if self._consecutive_auth_failures >= self.AUTH_FAILURE_THRESHOLD:
+                    raise ConfigEntryAuthFailed from exception
+                raise UpdateFailed(
+                    f"Authentication error (attempt "
+                    f"{self._consecutive_auth_failures}/{self.AUTH_FAILURE_THRESHOLD})"
+                ) from exception
+            if _is_rate_limit_error(exception):
+                _LOGGER.warning(
+                    "Rate limited by Electrolux API, backing off to 10 min"
+                )
+                self.update_interval = timedelta(minutes=10)
+                raise UpdateFailed("Rate limited by API") from exception
             raise UpdateFailed(exception) from exception
 
     @staticmethod
@@ -171,23 +193,33 @@ class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
 
     async def _listen_for_changes(self):
         """Listen to live stream for changes."""
-        async for event in self.api._hub.watch_appliances():
-            appliance_id = event.get("applianceId")
-            property_name = event.get("property")
-            value = event.get("value")
+        while True:
+            try:
+                async for event in self.api._hub.watch_appliances():
+                    appliance_id = event.get("applianceId")
+                    property_name = event.get("property")
+                    value = event.get("value")
 
-            if not appliance_id or not property_name:
-                continue
+                    if not appliance_id or not property_name:
+                        continue
 
-            if self.api.update_appliance_state(
-                self.data["appliances"], appliance_id, property_name, value
-            ):
-                # Notify entities without async_set_updated_data: that would
-                # reset the polling schedule, and a steady trickle of stream
-                # events (e.g. battery updates) would then postpone polling
-                # indefinitely, freezing all properties that only arrive via
-                # polling (such as the vacuum map data).
-                self.async_update_listeners()
+                    if self.api.update_appliance_state(
+                        self.data["appliances"], appliance_id, property_name, value
+                    ):
+                        # Notify entities without async_set_updated_data: that
+                        # would reset the polling schedule, and a steady trickle
+                        # of stream events (e.g. battery updates) would then
+                        # postpone polling indefinitely, freezing all properties
+                        # that only arrive via polling (such as vacuum map data).
+                        self.async_update_listeners()
+            except asyncio.CancelledError:
+                _LOGGER.debug("Live stream task cancelled")
+                return
+            except Exception as error:
+                _LOGGER.warning(
+                    "Live stream connection lost: %s. Reconnecting in 30s.", error
+                )
+                await asyncio.sleep(30)
 
 
 class WellBeingTokenManager(TokenManager):
@@ -239,6 +271,20 @@ def _is_authentication_error(exception: BaseException) -> bool:
             isinstance(current, ClientResponseError)
             and current.status in AUTH_ERROR_STATUSES
         ):
+            return True
+        current = current.__cause__ or current.__context__
+
+    return False
+
+
+def _is_rate_limit_error(exception: BaseException) -> bool:
+    """Return whether an exception chain contains an HTTP 429 rate limit."""
+    seen: set[int] = set()
+    current: BaseException | None = exception
+
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        if isinstance(current, ClientResponseError) and current.status == 429:
             return True
         current = current.__cause__ or current.__context__
 
