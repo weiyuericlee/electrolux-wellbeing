@@ -38,13 +38,13 @@ class WellbeingSwitch(WellbeingEntity, SwitchEntity):
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
         self.get_entity.set_state(True)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, True)
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
         self.get_entity.set_state(False)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, False)

@@ -132,7 +132,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self._preset_mode = WorkMode(preset_mode)
 
         self.get_appliance.set_mode(self._preset_mode)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
         await self.api.set_work_mode(self.pnc_id, self._preset_mode)
         self.coordinator.hass.async_create_task(self._delayed_refresh(10))
 
@@ -162,7 +162,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
             percentage_to_ranged_value(self._speed_range, percentage or 10)
         )
         self.get_appliance.set_mode(self._preset_mode)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_work_mode(self.pnc_id, self._preset_mode)
 
@@ -176,7 +176,7 @@ class WellbeingFan(WellbeingEntity, FanEntity):
         self._preset_mode = WorkMode.OFF
         self._speed = 0
         self.get_appliance.set_mode(self._preset_mode)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_work_mode(self.pnc_id, WorkMode.OFF)
         self.coordinator.hass.async_create_task(self._delayed_refresh(10))
@@ -226,7 +226,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         set_speed = self._inv_speed_map[speed]
 
         self.get_entity.set_state(set_speed)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         if percentage == 0 or speed == 0:
             await self.async_turn_off()
@@ -257,7 +257,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
         preset_mode = OperativeMode(mode)
 
         self.get_appliance.set_operative_mode(preset_mode)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_work_mode(self.pnc_id, preset_mode)
 
@@ -267,7 +267,7 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
     async def async_oscillate(self, oscillating: bool) -> None:
         self.get_appliance.set_oscillating(oscillating)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_oscillate(self.pnc_id, oscillating)
 
@@ -277,12 +277,12 @@ class WellbeingHumidifierFan(WellbeingEntity, FanEntity):
 
     async def async_turn_on(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.ON)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_power_on(self.pnc_id)
 
     async def async_turn_off(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.OFF)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_power_off(self.pnc_id)

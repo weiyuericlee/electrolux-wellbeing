@@ -60,7 +60,7 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
         function_mode = FunctionMode(mode)
 
         self.get_appliance.set_function_mode(function_mode)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         if self.get_appliance.power_status == PowerStatus.OFF:
             await self.async_turn_on()
@@ -82,7 +82,7 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
     async def async_set_humidity(self, humidity) -> None:
         """Set the humidity target."""
         self.get_entity.set_state(humidity)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         if self.get_appliance.power_status == PowerStatus.OFF:
             await self.async_turn_on()
@@ -99,12 +99,12 @@ class WellbeingHumidifier(WellbeingEntity, HumidifierEntity):
 
     async def async_turn_on(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.ON)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_power_on(self.pnc_id)
 
     async def async_turn_off(self, *args, **kwargs) -> None:
         self.get_appliance.set_power_status(PowerStatus.OFF)
-        self.async_write_ha_state()
+        self.coordinator.async_update_listeners()
 
         await self.api.set_dh_power_off(self.pnc_id)
