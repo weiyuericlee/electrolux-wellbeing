@@ -113,7 +113,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 class WellbeingDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching data from the API."""
 
-    AUTH_FAILURE_THRESHOLD = 3
+    AUTH_FAILURE_THRESHOLD = 60
 
     def __init__(
         self,

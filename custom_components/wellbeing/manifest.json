@@ -9,6 +9,6 @@
   "iot_class": "cloud_polling",
   "issue_tracker": "https://github.com/JohNan/homeassistant-wellbeing/issues",
   "loggers": ["pyelectroluxgroup"],
-  "requirements": ["Pillow>=10.1.0", "pyelectroluxgroup==0.2.7"],
+  "requirements": ["Pillow>=10.1.0", "pyelectroluxgroup @ git+https://github.com/weiyuericlee/pyelectroluxgroup.git@main"],
   "version": "v0.0.0"
 }
