@@ -690,11 +690,17 @@ class Appliance:
     @property
     def preset_modes(self):
         """Get the preset modes available for the appliance."""
-        if self.model == Model.Muju:
-            return [WorkMode.SMART, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
-        elif self.model == Model.DH:
+        if self.model == Model.DH:
             return [OperativeMode.AUTOMATIC, OperativeMode.MANUAL, OperativeMode.QUIET]
-        return [WorkMode.AUTOMATIC, WorkMode.MANUAL, WorkMode.QUIET]
+        valid_modes = {mode.value for mode in WorkMode}
+        workmode_values = self.capabilities.get("Workmode", {}).get("values")
+        if workmode_values:
+            return [
+                WorkMode(value) for value in workmode_values if value in valid_modes
+            ]
+        if self.model == Model.Muju:
+            return [WorkMode.AUTO, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
+        return [WorkMode.AUTO, WorkMode.MANUAL, WorkMode.OFF]
 
     @property
     def available_modes(self):
@@ -705,9 +711,11 @@ class Appliance:
         """Get the work mode from a preset mode string."""
         if preset_mode:
             return WorkMode(preset_mode)
-        if self.model == Model.Muju:
-            return WorkMode.SMART
-        return WorkMode.AUTOMATIC
+        presets = self.preset_modes
+        for mode in (WorkMode.AUTO, WorkMode.SMART, WorkMode.MANUAL):
+            if mode in presets:
+                return mode
+        return WorkMode.AUTO
 
     @property
     def speed_range(self) -> tuple[int, int]:
