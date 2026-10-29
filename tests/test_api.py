@@ -11,8 +11,6 @@ from homeassistant.const import Platform
 from custom_components.wellbeing.api import (
     Appliance,
     ApplianceBinary,
-    ApplianceCamera,
-    ApplianceCleaningSessionSensor,
     ApplianceClimate,
     ApplianceConsumableSensor,
     ApplianceFan,
@@ -64,22 +62,10 @@ def test_appliance_entities():
     climate = ApplianceClimate("Climate Name", "climate_attr")
     assert climate.entity_type == Platform.CLIMATE
 
-    camera = ApplianceCamera("Camera Name", "camera_attr")
-    assert camera.entity_type == Platform.CAMERA
-    camera.setup({"camera_attr": b"image_data"})
-    assert camera.state == b"image_data"
-
     consumable = ApplianceConsumableSensor("Consumable", "filter_life", 1000)
     assert consumable.entity_type == Platform.SENSOR
     consumable.setup({"filter_life": 500})
     assert consumable.state == 50.0  # 500 / 1000 * 100
-
-    session_sensor = ApplianceCleaningSessionSensor(
-        "Session", "clean_time", "sessionKey"
-    )
-    assert session_sensor.entity_type == Platform.SENSOR
-    session_sensor.setup({"cleaningSession": {"sessionKey": 60}})
-    assert session_sensor.state == 60
 
 
 def test_appliance_setup_purei9():
@@ -178,6 +164,46 @@ def test_appliance_setup_muju():
     assert appliance.speed_range == (1, 3)
 
 
+def test_appliance_preset_modes_follow_capabilities():
+    """Preset modes come from the reported capabilities when they are present."""
+    appliance = Appliance("AirPurifier", "pnc_muju_no_smart", "Muju")
+    appliance.device = "AIR_PURIFIER"
+    appliance.setup(
+        {"Workmode": "Manual", "LouverSwing": "off"},
+        {
+            "Workmode": {
+                "access": "readwrite",
+                "type": "string",
+                "values": {"Auto": {}, "Manual": {}, "Quiet": {}, "PowerOff": {}},
+            }
+        },
+    )
+    assert appliance.preset_modes == [
+        WorkMode.AUTO,
+        WorkMode.MANUAL,
+        WorkMode.QUITE,
+        WorkMode.OFF,
+    ]
+    # This unit has no Smart, so turning on without a preset must not send it.
+    assert appliance.work_mode_from_preset_mode(None) == WorkMode.AUTO
+
+
+def test_appliance_preset_modes_keep_smart_when_reported():
+    """Units that do report Smart keep using it as the default mode."""
+    appliance = Appliance("AirPurifier", "pnc_muju_smart", "Muju")
+    appliance.device = "AIR_PURIFIER"
+    appliance.setup(
+        {"Workmode": "Smart", "LouverSwing": "off"},
+        {"Workmode": {"values": {"Smart": {}, "Manual": {}, "PowerOff": {}}}},
+    )
+    assert appliance.preset_modes == [
+        WorkMode.SMART,
+        WorkMode.MANUAL,
+        WorkMode.OFF,
+    ]
+    assert appliance.work_mode_from_preset_mode(None) == WorkMode.SMART
+
+
 def test_appliances_collection():
     """Test Appliances collection wrapper."""
     app1 = Appliance("A", "1", "PUREi9")
@@ -194,7 +220,7 @@ async def test_api_client_ensure_loaded():
     mock_appliance.id = "pnc_1"
     mock_hub.async_get_appliances.return_value = [mock_appliance]
 
-    client = WellbeingApiClient(mock_hub, use_stream=False)
+    client = WellbeingApiClient(mock_hub)
     await client._ensure_loaded()
 
     assert "pnc_1" in client._api_appliances
@@ -203,19 +229,15 @@ async def test_api_client_ensure_loaded():
 
 @pytest.mark.asyncio
 async def test_api_client_livestream():
-    """Test livestream configuration fetching and state updates."""
+    """Test livestream state updates."""
     mock_hub = AsyncMock()
     mock_appliance = MagicMock()
     mock_appliance.id = "pnc_1"
     mock_appliance.state_data = {}
     mock_hub.async_get_appliances.return_value = [mock_appliance]
-    mock_hub.async_get_livestream_configurations.return_value = {
-        "appliances": [{"applianceId": "pnc_1", "properties": ["battery"]}]
-    }
-
-    client = WellbeingApiClient(mock_hub, use_stream=True)
+    client = WellbeingApiClient(mock_hub)
     await client._ensure_loaded()
-    assert client._livestream_properties["pnc_1"] == ["battery"]
+    mock_hub.async_get_livestream_configurations.assert_not_awaited()
 
     # Test update_appliance_state
     ha_appliances = MagicMock()
@@ -241,6 +263,6 @@ async def test_api_client_update_error():
         request_info=MagicMock(), history=(), status=401, message="Unauthorized"
     )
 
-    client = WellbeingApiClient(mock_hub, use_stream=False)
+    client = WellbeingApiClient(mock_hub)
     with pytest.raises(ClientResponseError):
         await client._ensure_loaded()

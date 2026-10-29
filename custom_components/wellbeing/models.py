@@ -693,11 +693,10 @@ class Appliance:
         if self.model == Model.DH:
             return [OperativeMode.AUTOMATIC, OperativeMode.MANUAL, OperativeMode.QUIET]
         valid_modes = {mode.value for mode in WorkMode}
-        workmode_values = self.capabilities.get("Workmode", {}).get("values")
-        if workmode_values:
-            return [
-                WorkMode(value) for value in workmode_values if value in valid_modes
-            ]
+        workmode_values = (self.capabilities.get("Workmode") or {}).get("values") or {}
+        modes = [WorkMode(value) for value in workmode_values if value in valid_modes]
+        if modes:
+            return modes
         if self.model == Model.Muju:
             return [WorkMode.AUTO, WorkMode.QUITE, WorkMode.MANUAL, WorkMode.OFF]
         return [WorkMode.AUTO, WorkMode.MANUAL, WorkMode.OFF]
