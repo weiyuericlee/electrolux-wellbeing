@@ -41,6 +41,7 @@ PLATFORMS = [
     Platform.SWITCH,
     Platform.VACUUM,
     Platform.CLIMATE,
+    Platform.SELECT,
 ]
 
 

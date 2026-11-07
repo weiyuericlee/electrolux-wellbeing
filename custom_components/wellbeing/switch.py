@@ -1,6 +1,5 @@
 """Switch platform for Wellbeing."""
 
-
 from homeassistant.components.switch import SwitchEntity
 from homeassistant.const import Platform
 
@@ -17,7 +16,9 @@ async def async_setup_entry(hass, entry, async_add_devices):
         for pnc_id, appliance in appliances.appliances.items():
             async_add_devices(
                 [
-                    WellbeingSwitch(coordinator, entry, pnc_id, entity.entity_type, entity.attr)
+                    WellbeingSwitch(
+                        coordinator, entry, pnc_id, entity.entity_type, entity.attr
+                    )
                     for entity in appliance.entities
                     if entity.entity_type == Platform.SWITCH
                 ]
@@ -37,14 +38,12 @@ class WellbeingSwitch(WellbeingEntity, SwitchEntity):
 
     async def async_turn_on(self, **kwargs):
         """Turn the switch on."""
-        self.get_entity.set_state(True)
-        self.coordinator.async_update_listeners()
-
         await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, True)
+        self.set_optimistic_state(Platform.SWITCH, self.entity_attr, True)
+        await self.async_refresh_later()
 
     async def async_turn_off(self, **kwargs):
         """Turn the switch off."""
-        self.get_entity.set_state(False)
-        self.coordinator.async_update_listeners()
-
         await self.coordinator.api.set_feature_state(self.pnc_id, self.entity_attr, False)
+        self.set_optimistic_state(Platform.SWITCH, self.entity_attr, False)
+        await self.async_refresh_later()

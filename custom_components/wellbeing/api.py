@@ -4,6 +4,7 @@ import asyncio
 import logging
 
 import voluptuous as vol
+from aiohttp import ClientResponseError
 from homeassistant.components.vacuum import Segment
 from homeassistant.exceptions import ServiceValidationError
 from pyelectroluxgroup.api import ElectroluxHubAPI
@@ -24,6 +25,26 @@ from .models import (
 )
 
 _LOGGER: logging.Logger = logging.getLogger(__package__)
+
+
+def _is_writable(capabilities: dict, name: str) -> bool:
+    capability = capabilities.get(name)
+    return isinstance(capability, dict) and capability.get("access") == "readwrite"
+
+
+def _api_capabilities(appliance: ApiAppliance) -> dict:
+    """Capabilities of a pyelectroluxgroup appliance, or {} when unavailable."""
+    capabilities = getattr(appliance, "capabilities_data", None)
+    return capabilities if isinstance(capabilities, dict) else {}
+
+
+def _api_reported(appliance: ApiAppliance) -> dict:
+    """Reported state of a pyelectroluxgroup appliance, or {} when unavailable."""
+    try:
+        state = appliance.state
+    except (KeyError, TypeError, AttributeError):
+        return {}
+    return state if isinstance(state, dict) else {}
 
 
 class WellbeingApiClient:
@@ -131,6 +152,7 @@ class WellbeingApiClient:
                 and appliance.device_type != "MULTI_AIR_PURIFIER"
                 and appliance.device_type != "DEHUMIDIFIER"
                 and appliance.device_type != "PORTABLE_AIR_CONDITIONER"
+                and model_name not in {model.value for model in Model}
             ):
                 continue
 
@@ -148,6 +170,11 @@ class WellbeingApiClient:
                 app.brand = appliance.brand
                 app.serialNumber = appliance.serial_number
                 app.device = appliance.device_type
+                try:
+                    commercial_model = appliance.model
+                except (AttributeError, KeyError, TypeError):
+                    commercial_model = None
+                app.model_name = commercial_model if isinstance(commercial_model, str) else None
                 self._appliances[appliance_id] = app
             else:
                 app = self._appliances[appliance_id]
@@ -522,14 +549,64 @@ class WellbeingApiClient:
         result = await appliance.send_command(data)
         _LOGGER.debug(f"Set Fan Speed: {result}")
 
-    async def set_work_mode(self, pnc_id: str, mode: WorkMode):
-        data = {"Workmode": mode.value}
+    async def set_work_mode(
+        self, pnc_id: str, mode: WorkMode, ha_appliance: Appliance | None = None
+    ):
         appliance = self._api_appliances.get(pnc_id, None)
         if appliance is None:
             _LOGGER.error(f"Failed to set work mode for appliance with id {pnc_id}")
             return
 
-        result = await appliance.send_command(data)
+        capabilities = _api_capabilities(appliance)
+        uses_execute_command = isinstance(capabilities.get("executeCommand"), dict)
+        workmode_values = (capabilities.get("Workmode") or {}).get("values") or {}
+        accepted = {str(value).casefold(): str(value) for value in workmode_values}
+
+        if mode == WorkMode.OFF and uses_execute_command and "poweroff" not in accepted:
+            result = await appliance.send_command({"executeCommand": "off"})
+            _LOGGER.debug(f"Power off: {result}")
+            return
+
+        reported = _api_reported(appliance)
+        if uses_execute_command and mode != WorkMode.OFF:
+            appliance_state = reported.get("applianceState")
+            if isinstance(appliance_state, str) and appliance_state.casefold() == "off":
+                result = await appliance.send_command({"executeCommand": "on"})
+                _LOGGER.debug(f"Power on: {result}")
+
+        heating_writable = _is_writable(capabilities, "Heating")
+        quiet_writable = _is_writable(capabilities, "QuietFan")
+        if mode == WorkMode.HEAT and heating_writable:
+            result = await appliance.send_command({"Heating": True})
+            _LOGGER.debug(f"Set heating on: {result}")
+            return
+        if mode == WorkMode.QUITE and quiet_writable:
+            # QuietFan is only accepted while the appliance is in Auto.
+            if str(reported.get("Workmode", "")).casefold() != "auto":
+                value = accepted.get("auto", WorkMode.AUTO.value)
+                result = await appliance.send_command({"Workmode": value})
+                _LOGGER.debug(f"Set work mode: {result}")
+            result = await appliance.send_command({"QuietFan": "on"})
+            _LOGGER.debug(f"Set quiet fan on: {result}")
+            return
+
+        # Leaving a virtual preset: clear the feature it stands for first.
+        if quiet_writable and (
+            str(reported.get("QuietFan", "")).casefold() == "on"
+            or str(reported.get("Workmode", "")).casefold() == "auto"
+        ):
+            try:
+                result = await appliance.send_command({"QuietFan": "off"})
+                _LOGGER.debug(f"Set quiet fan off: {result}")
+            except ClientResponseError as error:
+                if error.status != 406:
+                    raise
+        if heating_writable:
+            result = await appliance.send_command({"Heating": False})
+            _LOGGER.debug(f"Set heating off: {result}")
+
+        value = accepted.get(mode.value.casefold(), mode.value)
+        result = await appliance.send_command({"Workmode": value})
         _LOGGER.debug(f"Set work mode: {result}")
 
     async def set_feature_state(self, pnc_id: str, feature: str, state: bool):
@@ -539,17 +616,31 @@ class WellbeingApiClient:
             _LOGGER.error(f"Failed to set attr {feature} for appliance with id {pnc_id}")
             return
 
-        capability = appliance.capabilities.get(feature, {})
+        capabilities = _api_capabilities(appliance)
+        capability = capabilities.get(feature, {}) if isinstance(capabilities, dict) else {}
         option_type = capability.get("type")
-        options = list(capability.get("values", {}).keys())
+        options = list((capability.get("values") or {}).keys())
+        reported = _api_reported(appliance).get(feature)
         if option_type == "string" and options:
             if options[0].lower() in ["enabled", "connected", "running", "on"]:
-                data = {feature: options[1-int(state)]}
+                data = {feature: options[1 - int(state)]}
             else:
                 data = {feature: options[int(state)]}
+        elif isinstance(reported, str) and reported.casefold() in {"on", "off"}:
+            data = {feature: "on" if state else "off"}
         else:
             data = {feature: state}
         await self.send_command(pnc_id, data)
+
+    async def set_property(self, pnc_id: str, name: str, value):
+        """Send a single property command (e.g. TemperatureTarget, LouverSwing)."""
+        appliance = self._api_appliances.get(pnc_id, None)
+        if appliance is None:
+            _LOGGER.error(f"Failed to set {name} for appliance with id {pnc_id}")
+            return
+
+        result = await appliance.send_command({name: value})
+        _LOGGER.debug(f"Set {name} to {value}: {result}")
 
     async def set_dh_fan_speed(self, pnc_id: str, level: str):
         data = {"fanSpeedSetting": level}
