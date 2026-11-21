@@ -57,6 +57,7 @@ class WellbeingApiClient:
         self._livestream_revision = 0
         self._livestream_updates: dict[str, dict[str, tuple[int, object]]] = {}
         self._selected_maps: dict[str, str] = {}
+        self._interactive_maps: dict[str, list] = {}
         self._coordinator = None
 
     def set_coordinator(self, coordinator):
@@ -315,6 +316,7 @@ class WellbeingApiClient:
 
         if appliance.type == Model.PUREi9.value:
             api_maps = await appliance.async_get_interactive_maps()
+            self._interactive_maps[pnc_id] = list(api_maps or [])
             return list(
                 dict.fromkeys(m.name for m in api_maps if getattr(m, "name", None))
             )
@@ -325,6 +327,7 @@ class WellbeingApiClient:
             or appliance.type == Model.Cybele.value
         ):
             api_maps = await appliance.async_get_memory_maps()
+            self._interactive_maps[pnc_id] = list(api_maps or [])
             return list(
                 dict.fromkeys(m.name for m in api_maps if getattr(m, "name", None))
             )
@@ -441,11 +444,16 @@ class WellbeingApiClient:
                 )
                 return
             zone_power_mode = {zone.id: zone.power_mode for zone in api_map.zones}
-            default_power_mode = FAN_SPEEDS_PUREI92.get("smart", 2)
+            reported = _api_reported(appliance)
+            if "powerMode" not in reported and "ecoMode" in reported:
+                # Gen 1 PUREi9 has only Eco (1) and Power (3), no smart (2)
+                default_power_mode = 1 if reported.get("ecoMode") else 3
+            else:
+                default_power_mode = FAN_SPEEDS_PUREI92.get("smart", 2)
             zones_payload = [
                 {
                     "zoneId": segment_id,
-                    "powerMode": zone_power_mode.get(segment_id, default_power_mode),
+                    "powerMode": zone_power_mode.get(segment_id) or default_power_mode,
                 }
                 for segment_id in segment_ids
             ]
@@ -574,7 +582,8 @@ class WellbeingApiClient:
                     {
                         "zoneId": api_zone.id,
                         "powerMode": FAN_SPEEDS_PUREI92.get(
-                            zone.get("fan_speed"), api_zone.power_mode
+                            zone.get("fan_speed") or params.get("fan_speed"),
+                            api_zone.power_mode,
                         ),
                     }
                 )

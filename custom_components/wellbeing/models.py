@@ -88,6 +88,7 @@ INTERACTIVE_MAP_SCHEMA = vol.Schema(
     {
         vol.Required("map"): str,
         vol.Required("zones"): [validate_vacuum_zone_entry],
+        vol.Optional("fan_speed"): vol.In(list(FAN_SPEEDS_PUREI92.keys())),
     }
 )
 
@@ -897,6 +898,7 @@ class Appliance:
 
     def setup(self, data, capabilities):
         """Setup the appliance state and entities based on API data."""
+        self.reported_state = data
         self.capabilities = capabilities
         self.firmware = ""
         if "FrmVer_NIU" in data:
